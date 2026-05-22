@@ -22,10 +22,15 @@ function sortStats(stats: Record<string, ProblemStat>): ProblemStat[] {
 export function App() {
   const [profile, setProfile] = useState<ProfileV1>(() => loadProfile() ?? mkDefault());
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
 
   useEffect(() => saveProfile(profile), [profile]);
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(id);
+  }, []);
   useEffect(() => {
     if (!profile.session.activeProblem) {
       setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: generateProblem(p.settings) } }));
@@ -33,13 +38,18 @@ export function App() {
   }, [profile.session.activeProblem, profile.settings]);
 
   const timed = profile.settings.mode === 'timed';
-  const remaining = calculateRemainingMs(profile);
+  const remaining = calculateRemainingMs(profile) - (profile.session.sessionStartAt ? (Date.now() - now) : 0);
   const ended = timed && remaining <= 0;
 
   function ensureSessionStart() {
     if (profile.settings.mode === 'timed' && !profile.session.sessionStartAt) {
       setProfile((p) => ({ ...p, session: { ...p.session, sessionStartAt: Date.now(), sessionDurationMs: p.settings.sessionMinutes * 60000 } }));
     }
+  }
+
+  function pushDigit(digit: string) {
+    if (ended) return;
+    setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: (p.session.typedAnswer + digit).slice(0, 3) } }));
   }
 
   function submit() {
@@ -59,17 +69,29 @@ export function App() {
 
   const rows = sortStats(profile.problemStats);
 
-  return <div className="app" onKeyDown={(e) => e.key === 'Enter' && submit()} tabIndex={0}>
+  return <div className="app" onKeyDown={(e) => {
+    if (e.key === 'Enter') submit();
+    if (/^[0-9]$/.test(e.key)) pushDigit(e.key);
+    if (e.key === 'Backspace') {
+      setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }));
+    }
+  }} tabIndex={0}>
     <nav>{(['practice', 'settings', 'stats'] as const).map((s) => <button key={s} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, lastScreen: s } }))}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : tr.stats}</button>)}</nav>
-    {profile.session.lastScreen === 'practice' && <section>
-      <div className="timer">{timed ? `⏱ ${Math.ceil(remaining / 1000)}s` : '∞'}</div>
+    {profile.session.lastScreen === 'practice' && <section className="practice">
+      <div className="topbar">
+        <div className="timer">{timed ? `⏱ ${Math.max(0, Math.ceil(remaining / 1000))}s` : '⏱ ∞'}</div>
+        <div className="coins">🪙 {profile.session.coins}</div>
+      </div>
       <div className="expr">{profile.session.activeProblem?.expression ?? '...'}</div>
       <div className="input">{profile.session.typedAnswer || '0'}</div>
-      <div className="pad">{'1234567890'.split('').map((d) => <button key={d} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: (p.session.typedAnswer + d).slice(0, 3) } }))}>{d}</button>)}</div>
-      <div><button onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>{tr.del}</button>
-      <button onClick={submit}>{tr.ok}</button></div>
-      <div>{feedback === 'correct' ? tr.correct : feedback === 'wrong' ? tr.wrong : ''}</div>
-      <div>🪙 {profile.session.coins}</div>
+
+      <div className="feedback">{feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' '}</div>
+
+      <div className="pad">
+        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button key={d} onClick={() => pushDigit(d)}>{d}</button>)}
+        <button onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>{tr.del}</button>
+        <button className="enter" onClick={submit}>{tr.ok} / Enter</button>
+      </div>
     </section>}
     {profile.session.lastScreen === 'settings' && <section>
       <label>{tr.modeLabel} <select value={profile.settings.mode} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, mode: e.target.value as Settings['mode'] } }))}><option value="timed">{tr.modeTimed}</option><option value="no-pressure">{tr.modeNoPressure}</option></select></label>
