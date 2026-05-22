@@ -121,7 +121,9 @@ export function App() {
       </div>}
 
       <div className="pad">
-        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button key={d} disabled={ended} onClick={() => pushDigit(d)}>{d}</button>)}
+        <div className="digits-row">
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button key={d} disabled={ended} onClick={() => pushDigit(d)}>{d}</button>)}
+        </div>
         <button disabled={ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>{tr.del}</button>
         <button className="enter" disabled={ended} onClick={submit}>{tr.ok} / Enter</button>
       </div>
