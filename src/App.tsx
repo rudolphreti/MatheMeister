@@ -22,6 +22,7 @@ function sortStats(stats: Record<string, ProblemStat>): ProblemStat[] {
 export function App() {
   const [profile, setProfile] = useState<ProfileV1>(() => loadProfile() ?? mkDefault());
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
+  const [importMessage, setImportMessage] = useState<string>('');
   const [now, setNow] = useState(() => Date.now());
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
@@ -103,7 +104,20 @@ export function App() {
       <label>{tr.maxLabel} <select value={profile.settings.max} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, max: Number(e.target.value) as Settings['max'] } }))}>{[5, 10, 20].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
       <label>{tr.termsLabel} <select value={profile.settings.terms} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, terms: Number(e.target.value) as Settings['terms'] } }))}>{[2, 3, 4, 5].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
       <button onClick={() => { const blob = new Blob([exportProfile(profile)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'math-profile.json'; a.click(); }}>{tr.exportJson}</button>
-      <input type="file" accept="application/json" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; const text = await file.text(); setProfile(importProfile(text)); }} />
+      <input type="file" accept="application/json" onChange={async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const imported = importProfile(text);
+          setProfile(imported);
+          setImportMessage('✅ JSON imported');
+        } catch {
+          setImportMessage('❌ Invalid JSON profile');
+        }
+        e.currentTarget.value = '';
+      }} />
+      <div>{importMessage}</div>
     </section>}
     {profile.session.lastScreen === 'stats' && <section><table><thead><tr><th>{tr.statsProblem}</th><th>{tr.statsCorrect}</th><th>{tr.statsWrong}</th><th>{tr.statsAvgMs}</th><th>{tr.statsDifficulty}</th></tr></thead>
     <tbody>{rows.map((r) => <tr key={r.key}><td>{r.expression}</td><td>{r.correct}</td><td>{r.wrong}</td><td>{r.averageResponseTimeMs}</td><td>{r.difficultyScore}</td></tr>)}</tbody></table></section>}
