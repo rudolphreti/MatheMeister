@@ -60,6 +60,26 @@ export function App() {
     setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: (p.session.typedAnswer + digit).slice(0, 3) } }));
   }
 
+
+
+  function restartSession() {
+    const durationMs = profile.settings.sessionMinutes * 60000;
+    const nextProblem = generateProblem(profile.settings);
+    setFeedback(null);
+    setProfile((p) => ({
+      ...p,
+      session: {
+        ...p.session,
+        activeProblem: nextProblem,
+        typedAnswer: '',
+        sessionStartAt: null,
+        sessionEndsAt: null,
+        sessionDurationMs: durationMs,
+        currentStats: { correct: 0, wrong: 0 }
+      }
+    }));
+  }
+
   function submit() {
     if (!profile.session.activeProblem || ended) return;
     ensureSessionStart();
@@ -93,12 +113,17 @@ export function App() {
       <div className="expr">{profile.session.activeProblem?.expression ?? '...'}</div>
       <div className="input">{profile.session.typedAnswer || '0'}</div>
 
-      <div className="feedback">{feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' '}</div>
+      <div className="feedback">{ended ? `⏰ ${tr.timeUpTitle}` : feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' '}</div>
+
+      {ended && <div className="timeup">
+        <p>{tr.timeUpQuestion}</p>
+        <button className="restart" onClick={restartSession}>{tr.restartSession}</button>
+      </div>}
 
       <div className="pad">
-        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button key={d} onClick={() => pushDigit(d)}>{d}</button>)}
-        <button onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>{tr.del}</button>
-        <button className="enter" onClick={submit}>{tr.ok} / Enter</button>
+        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button key={d} disabled={ended} onClick={() => pushDigit(d)}>{d}</button>)}
+        <button disabled={ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>{tr.del}</button>
+        <button className="enter" disabled={ended} onClick={submit}>{tr.ok} / Enter</button>
       </div>
     </section>}
     {profile.session.lastScreen === 'settings' && <section>
