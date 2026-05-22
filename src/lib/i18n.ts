@@ -20,5 +20,8 @@ export const t = (_lang: Language) => ({
   statsCorrect: 'Richtig',
   statsWrong: 'Falsch',
   statsAvgMs: 'Ø ms',
-  statsDifficulty: 'Schwierigkeit'
+  statsDifficulty: 'Schwierigkeit',
+  timeUpTitle: 'Zeit ist abgelaufen',
+  timeUpQuestion: 'Möchtest du neu starten?',
+  restartSession: 'Neu starten'
 });
