@@ -16,7 +16,10 @@ function calculateRemainingMs(profile: ProfileV1): number {
 }
 
 function sortStats(stats: Record<string, ProblemStat>): ProblemStat[] {
-  return Object.values(stats).sort((a, b) => b.difficultyScore - a.difficultyScore || b.wrong - a.wrong || b.averageResponseTimeMs - a.averageResponseTimeMs);
+  return Object.values(stats).sort((a, b) => b.difficultyScore - a.difficultyScore
+    || b.wrong - a.wrong
+    || b.averageResponseTimeMs - a.averageResponseTimeMs
+    || a.key.localeCompare(b.key));
 }
 
 export function App() {
@@ -81,7 +84,7 @@ export function App() {
       setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }));
     }
   }} tabIndex={0}>
-    <nav>{(['practice', 'settings', 'stats'] as const).map((s) => <button key={s} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, lastScreen: s } }))}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : tr.stats}</button>)}</nav>
+    <nav>{(['practice', 'settings', 'stats', 'problem-stats'] as const).map((s) => <button key={s} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, lastScreen: s } }))}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : s === 'problem-stats' ? tr.problemStats : tr.stats}</button>)}</nav>
     {profile.session.lastScreen === 'practice' && <section className="practice">
       <div className="topbar">
         <div className="timer">{timed ? `⏱ ${Math.max(0, Math.ceil(remaining / 1000))}s` : '⏱ ∞'}</div>
@@ -119,7 +122,8 @@ export function App() {
       }} />
       <div>{importMessage}</div>
     </section>}
-    {profile.session.lastScreen === 'stats' && <section><table><thead><tr><th>{tr.statsProblem}</th><th>{tr.statsCorrect}</th><th>{tr.statsWrong}</th><th>{tr.statsAvgMs}</th><th>{tr.statsDifficulty}</th></tr></thead>
+    {profile.session.lastScreen === 'stats' && <section><div>{tr.correct}: {profile.session.currentStats.correct} · {tr.wrong}: {profile.session.currentStats.wrong}</div></section>}
+    {profile.session.lastScreen === 'problem-stats' && <section><table><thead><tr><th>{tr.statsProblem}</th><th>{tr.statsCorrect}</th><th>{tr.statsWrong}</th><th>{tr.statsAvgMs}</th><th>{tr.statsDifficulty}</th></tr></thead>
     <tbody>{rows.map((r) => <tr key={r.key}><td>{r.expression}</td><td>{r.correct}</td><td>{r.wrong}</td><td>{r.averageResponseTimeMs}</td><td>{r.difficultyScore}</td></tr>)}</tbody></table></section>}
   </div>;
 }
