@@ -75,6 +75,14 @@ export function App() {
     setProfile((p) => ({ ...p, problemStats: { ...p.problemStats, [stat.key]: stat }, session: { ...p.session, activeProblem: next, typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) } } }));
   }
 
+  function nextProblem() {
+    if (!profile.session.activeProblem || ended) return;
+    ensureSessionStart();
+    const next = pickWeightedProblem(pool, profile.problemStats, profile.session.activeProblem.key);
+    setFeedback(null);
+    setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: next, typedAnswer: '' } }));
+  }
+
   const rows = sortStats(profile.problemStats);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -107,8 +115,10 @@ export function App() {
 
       <div className="pad">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button key={d} onClick={() => pushDigit(d)}>{d}</button>)}
-        <button onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>{tr.del}</button>
+      </div>
+      <div className="actions-row">
         <button className="enter" onClick={submit}>{tr.ok} / Enter</button>
+        <button className="next" onClick={nextProblem}>Nächste -&gt;</button>
       </div>
     </section>}
     {profile.session.lastScreen === 'settings' && <section className="screen screen-scroll settings-screen">
