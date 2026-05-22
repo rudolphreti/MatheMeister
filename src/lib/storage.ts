@@ -68,7 +68,7 @@ function isSession(x: unknown): x is ProfileV1['session'] {
     && !!y.currentStats
     && Number.isInteger(y.currentStats.correct)
     && Number.isInteger(y.currentStats.wrong)
-    && ['practice', 'settings', 'stats'].includes(y.lastScreen);
+    && ['practice', 'settings', 'stats', 'problem-stats'].includes(y.lastScreen);
 }
 
 function isProblemStat(x: unknown): x is ProfileV1['problemStats'][string] {

@@ -39,7 +39,7 @@ export interface SessionState {
   sessionDurationMs: number;
   coins: number;
   currentStats: { correct: number; wrong: number };
-  lastScreen: 'practice' | 'settings' | 'stats';
+  lastScreen: 'practice' | 'settings' | 'stats' | 'problem-stats';
 }
 
 export interface ProfileV1 {

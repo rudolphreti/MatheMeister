@@ -4,6 +4,7 @@ export const t = (_lang: Language) => ({
   practice: 'Üben',
   settings: 'Einstellungen',
   stats: 'Statistiken',
+  problemStats: 'Aufgabenstatistik',
   correct: 'Richtig',
   wrong: 'Falsch',
   ok: 'OK',
