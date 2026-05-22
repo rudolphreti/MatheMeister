@@ -35,6 +35,7 @@ export interface SessionState {
   activeProblem: Problem | null;
   typedAnswer: string;
   sessionStartAt: number | null;
+  sessionEndsAt: number | null;
   sessionDurationMs: number;
   coins: number;
   currentStats: { correct: number; wrong: number };

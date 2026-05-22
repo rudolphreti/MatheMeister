@@ -7,12 +7,12 @@ import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, terms: 2, soundEnabled: true, language: 'de' };
-const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', sessionStartAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice' }, problemStats: {} });
+const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice' }, problemStats: {} });
 
 function calculateRemainingMs(profile: ProfileV1): number {
   if (profile.settings.mode !== 'timed') return profile.session.sessionDurationMs;
-  if (!profile.session.sessionStartAt) return profile.session.sessionDurationMs;
-  return Math.max(0, profile.session.sessionDurationMs - (Date.now() - profile.session.sessionStartAt));
+  if (!profile.session.sessionEndsAt) return profile.session.sessionDurationMs;
+  return Math.max(0, profile.session.sessionEndsAt - Date.now());
 }
 
 function sortStats(stats: Record<string, ProblemStat>): ProblemStat[] {
@@ -38,12 +38,16 @@ export function App() {
   }, [profile.session.activeProblem, profile.settings]);
 
   const timed = profile.settings.mode === 'timed';
-  const remaining = calculateRemainingMs(profile) - (profile.session.sessionStartAt ? (Date.now() - now) : 0);
+  const remaining = profile.settings.mode === 'timed' && profile.session.sessionEndsAt
+    ? Math.max(0, profile.session.sessionEndsAt - now)
+    : calculateRemainingMs(profile);
   const ended = timed && remaining <= 0;
 
   function ensureSessionStart() {
     if (profile.settings.mode === 'timed' && !profile.session.sessionStartAt) {
-      setProfile((p) => ({ ...p, session: { ...p.session, sessionStartAt: Date.now(), sessionDurationMs: p.settings.sessionMinutes * 60000 } }));
+      const startAt = Date.now();
+      const durationMs = profile.settings.sessionMinutes * 60000;
+      setProfile((p) => ({ ...p, session: { ...p.session, sessionStartAt: startAt, sessionEndsAt: startAt + durationMs, sessionDurationMs: durationMs } }));
     }
   }
 
