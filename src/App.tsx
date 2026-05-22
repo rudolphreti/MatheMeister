@@ -76,6 +76,12 @@ export function App() {
   }
 
   const rows = sortStats(profile.problemStats);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  function setScreen(screen: 'practice' | 'settings' | 'stats' | 'problem-stats') {
+    setProfile((p) => ({ ...p, session: { ...p.session, lastScreen: screen } }));
+    setMenuOpen(false);
+  }
 
   return <div className="app" onKeyDown={(e) => {
     if (e.key === 'Enter') submit();
@@ -84,7 +90,11 @@ export function App() {
       setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }));
     }
   }} tabIndex={0}>
-    <nav>{(['practice', 'settings', 'stats', 'problem-stats'] as const).map((s) => <button key={s} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, lastScreen: s } }))}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : s === 'problem-stats' ? tr.problemStats : tr.stats}</button>)}</nav>
+    <header className="app-header">
+      <button className="hamburger" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}>☰</button>
+      <div className="screen-title">{profile.session.lastScreen === 'practice' ? tr.practice : profile.session.lastScreen === 'settings' ? tr.settings : profile.session.lastScreen === 'problem-stats' ? tr.problemStats : tr.stats}</div>
+    </header>
+    {menuOpen && <nav className="hamburger-menu">{(['practice', 'settings', 'stats', 'problem-stats'] as const).map((s) => <button key={s} onClick={() => setScreen(s)}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : s === 'problem-stats' ? tr.problemStats : tr.stats}</button>)}</nav>}
     {profile.session.lastScreen === 'practice' && <section className="practice">
       <div className="topbar">
         <div className="timer">{timed ? `⏱ ${Math.max(0, Math.ceil(remaining / 1000))}s` : '⏱ ∞'}</div>

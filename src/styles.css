@@ -12,21 +12,44 @@ body {
   margin: 0;
   background: #fff;
   color: #000;
+  overflow: hidden;
 }
 
 .app {
-  max-width: 900px;
+  max-width: 980px;
   margin: 0 auto;
-  padding: 20px;
-  font-size: 30px;
+  padding: clamp(10px, 2vh, 20px);
+  font-size: clamp(18px, 2.4vw, 30px);
   line-height: 1.35;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
 }
 
-nav {
+.app-header {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 14px;
+  align-items: center;
+  gap: 10px;
+}
+
+.screen-title {
+  font-size: clamp(24px, 4vw, 40px);
+  font-weight: 900;
+}
+
+.hamburger {
+  min-height: clamp(52px, 7vh, 72px);
+  min-width: clamp(52px, 7vh, 72px);
+  font-size: clamp(26px, 4vw, 42px);
+  padding: 0;
+}
+
+.hamburger-menu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 button,
@@ -58,7 +81,9 @@ input:focus-visible {
 .practice {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: clamp(8px, 1.6vh, 16px);
+  flex: 1;
+  min-height: 0;
 }
 
 .topbar {
@@ -70,7 +95,7 @@ input:focus-visible {
 
 .timer,
 .coins {
-  font-size: 52px;
+  font-size: clamp(28px, 4.8vw, 52px);
   font-weight: 900;
 }
 
@@ -82,8 +107,8 @@ input:focus-visible {
 }
 
 .input {
-  font-size: clamp(68px, 13vw, 112px);
-  min-height: 120px;
+  font-size: clamp(50px, 10vw, 112px);
+  min-height: clamp(76px, 12vh, 120px);
   border: 5px solid #000;
   padding: 12px;
   text-align: center;
@@ -93,8 +118,8 @@ input:focus-visible {
 }
 
 .feedback {
-  min-height: 64px;
-  font-size: 44px;
+  min-height: clamp(38px, 6vh, 64px);
+  font-size: clamp(24px, 4vw, 44px);
   font-weight: 900;
   text-align: center;
 }
@@ -102,13 +127,14 @@ input:focus-visible {
 .pad {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: clamp(6px, 1vh, 12px);
+  flex: 1;
 }
 
 .pad button {
-  font-size: 54px;
+  font-size: clamp(30px, 6.2vw, 54px);
   font-weight: 900;
-  min-height: 104px;
+  min-height: clamp(52px, 8.4vh, 104px);
   border-radius: 18px;
 }
 
@@ -122,15 +148,15 @@ label {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 16px;
-  font-size: 30px;
+  margin-bottom: 10px;
+  font-size: clamp(18px, 2.8vw, 30px);
   font-weight: 700;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 28px;
+  font-size: clamp(14px, 2vw, 24px);
 }
 
 th,
