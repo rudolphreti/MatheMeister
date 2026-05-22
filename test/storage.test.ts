@@ -5,4 +5,12 @@ const profile = { schemaVersion:1, settings:{ mode:'timed', sessionMinutes:10, m
 
 describe('storage', () => {
   it('roundtrip', () => { const out = importProfile(exportProfile(profile as never)); expect(out.schemaVersion).toBe(1); });
+  it('rejects invalid settings', () => {
+    const broken = { ...profile, settings: { ...profile.settings, max: 999 } };
+    expect(() => importProfile(JSON.stringify(broken))).toThrow();
+  });
+  it('rejects invalid problemStats rows', () => {
+    const broken = { ...profile, problemStats: { '1+1': { key: '1+1', expression: '1 + 1', attempts: 'oops' } } };
+    expect(() => importProfile(JSON.stringify(broken))).toThrow();
+  });
 });
