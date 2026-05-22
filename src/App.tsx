@@ -95,7 +95,7 @@ export function App() {
       <div className="screen-title">{profile.session.lastScreen === 'practice' ? tr.practice : profile.session.lastScreen === 'settings' ? tr.settings : profile.session.lastScreen === 'problem-stats' ? tr.problemStats : tr.stats}</div>
     </header>
     {menuOpen && <nav className="hamburger-menu">{(['practice', 'settings', 'stats', 'problem-stats'] as const).map((s) => <button key={s} onClick={() => setScreen(s)}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : s === 'problem-stats' ? tr.problemStats : tr.stats}</button>)}</nav>}
-    {profile.session.lastScreen === 'practice' && <section className="practice">
+    {profile.session.lastScreen === 'practice' && <section className="screen screen-practice practice">
       <div className="topbar">
         <div className="timer">{timed ? `⏱ ${Math.max(0, Math.ceil(remaining / 1000))}s` : '⏱ ∞'}</div>
         <div className="coins">🪙 {profile.session.coins}</div>
@@ -111,7 +111,7 @@ export function App() {
         <button className="enter" onClick={submit}>{tr.ok} / Enter</button>
       </div>
     </section>}
-    {profile.session.lastScreen === 'settings' && <section>
+    {profile.session.lastScreen === 'settings' && <section className="screen screen-scroll settings-screen">
       <label>{tr.modeLabel} <select value={profile.settings.mode} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, mode: e.target.value as Settings['mode'] } }))}><option value="timed">{tr.modeTimed}</option><option value="no-pressure">{tr.modeNoPressure}</option></select></label>
       <label>{tr.minutesLabel} <select value={profile.settings.sessionMinutes} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, sessionMinutes: Number(e.target.value) as Settings['sessionMinutes'] } }))}>{[1, 3, 5, 10, 15].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
       <label>{tr.maxLabel} <select value={profile.settings.max} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, max: Number(e.target.value) as Settings['max'] } }))}>{[5, 10, 20].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
@@ -132,8 +132,8 @@ export function App() {
       }} />
       <div>{importMessage}</div>
     </section>}
-    {profile.session.lastScreen === 'stats' && <section><div>{tr.correct}: {profile.session.currentStats.correct} · {tr.wrong}: {profile.session.currentStats.wrong}</div></section>}
-    {profile.session.lastScreen === 'problem-stats' && <section><table><thead><tr><th>{tr.statsProblem}</th><th>{tr.statsCorrect}</th><th>{tr.statsWrong}</th><th>{tr.statsAvgMs}</th><th>{tr.statsDifficulty}</th></tr></thead>
+    {profile.session.lastScreen === 'stats' && <section className="screen screen-scroll stats-screen"><div>{tr.correct}: {profile.session.currentStats.correct} · {tr.wrong}: {profile.session.currentStats.wrong}</div></section>}
+    {profile.session.lastScreen === 'problem-stats' && <section className="screen screen-scroll problem-stats-screen"><table><thead><tr><th>{tr.statsProblem}</th><th>{tr.statsCorrect}</th><th>{tr.statsWrong}</th><th>{tr.statsAvgMs}</th><th>{tr.statsDifficulty}</th></tr></thead>
     <tbody>{rows.map((r) => <tr key={r.key}><td>{r.expression}</td><td>{r.correct}</td><td>{r.wrong}</td><td>{r.averageResponseTimeMs}</td><td>{r.difficultyScore}</td></tr>)}</tbody></table></section>}
   </div>;
 }
