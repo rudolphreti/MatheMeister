@@ -4,10 +4,20 @@ import { coinReward, pickWeightedProblem, updateProblemStat } from './lib/adapti
 import { exportProfile, importProfile, loadProfile, saveProfile } from './lib/storage';
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
-import { ProfileV1, Settings } from './lib/types';
+import { ProfileV1, Settings, ProblemStat } from './lib/types';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, terms: 2, soundEnabled: true, language: 'de' };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', sessionStartAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice' }, problemStats: {} });
+
+function calculateRemainingMs(profile: ProfileV1): number {
+  if (profile.settings.mode !== 'timed') return profile.session.sessionDurationMs;
+  if (!profile.session.sessionStartAt) return profile.session.sessionDurationMs;
+  return Math.max(0, profile.session.sessionDurationMs - (Date.now() - profile.session.sessionStartAt));
+}
+
+function sortStats(stats: Record<string, ProblemStat>): ProblemStat[] {
+  return Object.values(stats).sort((a, b) => b.difficultyScore - a.difficultyScore || b.wrong - a.wrong || b.averageResponseTimeMs - a.averageResponseTimeMs);
+}
 
 export function App() {
   const [profile, setProfile] = useState<ProfileV1>(() => loadProfile() ?? mkDefault());
@@ -22,9 +32,8 @@ export function App() {
     }
   }, [profile.session.activeProblem, profile.settings]);
 
-  const now = Date.now();
   const timed = profile.settings.mode === 'timed';
-  const remaining = timed && profile.session.sessionStartAt ? Math.max(0, profile.session.sessionDurationMs - (now - profile.session.sessionStartAt)) : profile.session.sessionDurationMs;
+  const remaining = calculateRemainingMs(profile);
   const ended = timed && remaining <= 0;
 
   function ensureSessionStart() {
@@ -48,10 +57,10 @@ export function App() {
     setProfile((p) => ({ ...p, problemStats: { ...p.problemStats, [stat.key]: stat }, session: { ...p.session, activeProblem: next, typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) } } }));
   }
 
-  const rows = Object.values(profile.problemStats).sort((a, b) => b.difficultyScore - a.difficultyScore || b.wrong - a.wrong || b.averageResponseTimeMs - a.averageResponseTimeMs);
+  const rows = sortStats(profile.problemStats);
 
   return <div className="app" onKeyDown={(e) => e.key === 'Enter' && submit()} tabIndex={0}>
-    <nav>{(['practice','settings','stats'] as const).map((s) => <button key={s} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, lastScreen: s } }))}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : tr.stats}</button>)}</nav>
+    <nav>{(['practice', 'settings', 'stats'] as const).map((s) => <button key={s} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, lastScreen: s } }))}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : tr.stats}</button>)}</nav>
     {profile.session.lastScreen === 'practice' && <section>
       <div className="timer">{timed ? `⏱ ${Math.ceil(remaining / 1000)}s` : '∞'}</div>
       <div className="expr">{profile.session.activeProblem?.expression ?? '...'}</div>
@@ -63,14 +72,14 @@ export function App() {
       <div>🪙 {profile.session.coins}</div>
     </section>}
     {profile.session.lastScreen === 'settings' && <section>
-      <label>Mode <select value={profile.settings.mode} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, mode: e.target.value as Settings['mode'] } }))}><option value="timed">timed</option><option value="no-pressure">no-pressure</option></select></label>
-      <label>Minutes <select value={profile.settings.sessionMinutes} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, sessionMinutes: Number(e.target.value) as Settings['sessionMinutes'] } }))}>{[1,3,5,10,15].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
-      <label>Max <select value={profile.settings.max} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, max: Number(e.target.value) as Settings['max'] } }))}>{[5,10,20].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
-      <label>Terms <select value={profile.settings.terms} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, terms: Number(e.target.value) as Settings['terms'] } }))}>{[2,3,4,5].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
-      <button onClick={() => { const blob = new Blob([exportProfile(profile)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'math-profile.json'; a.click(); }}>{'Export JSON'}</button>
+      <label>{tr.modeLabel} <select value={profile.settings.mode} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, mode: e.target.value as Settings['mode'] } }))}><option value="timed">{tr.modeTimed}</option><option value="no-pressure">{tr.modeNoPressure}</option></select></label>
+      <label>{tr.minutesLabel} <select value={profile.settings.sessionMinutes} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, sessionMinutes: Number(e.target.value) as Settings['sessionMinutes'] } }))}>{[1, 3, 5, 10, 15].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
+      <label>{tr.maxLabel} <select value={profile.settings.max} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, max: Number(e.target.value) as Settings['max'] } }))}>{[5, 10, 20].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
+      <label>{tr.termsLabel} <select value={profile.settings.terms} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, terms: Number(e.target.value) as Settings['terms'] } }))}>{[2, 3, 4, 5].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
+      <button onClick={() => { const blob = new Blob([exportProfile(profile)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'math-profile.json'; a.click(); }}>{tr.exportJson}</button>
       <input type="file" accept="application/json" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; const text = await file.text(); setProfile(importProfile(text)); }} />
     </section>}
-    {profile.session.lastScreen === 'stats' && <section><table><thead><tr><th>Problem</th><th>Correct</th><th>Wrong</th><th>Avg ms</th><th>Difficulty</th></tr></thead>
+    {profile.session.lastScreen === 'stats' && <section><table><thead><tr><th>{tr.statsProblem}</th><th>{tr.statsCorrect}</th><th>{tr.statsWrong}</th><th>{tr.statsAvgMs}</th><th>{tr.statsDifficulty}</th></tr></thead>
     <tbody>{rows.map((r) => <tr key={r.key}><td>{r.expression}</td><td>{r.correct}</td><td>{r.wrong}</td><td>{r.averageResponseTimeMs}</td><td>{r.difficultyScore}</td></tr>)}</tbody></table></section>}
   </div>;
 }

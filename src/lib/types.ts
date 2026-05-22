@@ -1,5 +1,5 @@
 export type Mode = 'timed' | 'no-pressure';
-export type Language = 'de' | 'pl';
+export type Language = 'de';
 export type Operator = '+' | '-';
 
 export interface Settings {
