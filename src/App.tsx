@@ -115,15 +115,15 @@ export function App() {
     if (!ended) return '';
     const mistakes = profile.session.currentStats.wrong;
     if (timed && remaining <= 0) {
-      if (mistakes === 0) return '⏰ Czas minął. Świetna robota — 0 błędów!';
-      if (mistakes <= 2) return `⏰ Czas minął. Bardzo dobrze, tylko ${mistakes} błęd${mistakes === 1 ? 'u' : 'y'}.`;
-      if (mistakes <= 5) return `⏰ Czas minął. Nieźle, popełniłeś ${mistakes} błędów — mogłoby być lepiej.`;
-      return `⏰ Czas minął. Popełniłeś ${mistakes} błędów, ćwicz dalej.`;
+      if (mistakes === 0) return tr.timeUpPerfect;
+      if (mistakes <= 2) return tr.timeUpFewMistakes.replace('{mistakes}', String(mistakes));
+      if (mistakes <= 5) return tr.timeUpSomeMistakes.replace('{mistakes}', String(mistakes));
+      return tr.timeUpManyMistakes.replace('{mistakes}', String(mistakes));
     }
-    if (mistakes === 0) return '🎉 Gratulacje! Wykonałeś wszystkie zadania przed czasem bez błędów!';
-    if (mistakes <= 2) return `🎉 Gratulacje! Wykonałeś wszystkie zadania przed czasem, tylko ${mistakes} błęd${mistakes === 1 ? 'u' : 'y'}.`;
-    if (mistakes <= 5) return `👍 Nieźle! Wykonałeś wszystkie zadania przed czasem, ale popełniłeś ${mistakes} błędów.`;
-    return `📘 Wykonałeś wszystkie zadania przed czasem, ale popełniłeś ${mistakes} błędów — ćwicz dalej.`;
+    if (mistakes === 0) return tr.donePerfect;
+    if (mistakes <= 2) return tr.doneFewMistakes.replace('{mistakes}', String(mistakes));
+    if (mistakes <= 5) return tr.doneSomeMistakes.replace('{mistakes}', String(mistakes));
+    return tr.doneManyMistakes.replace('{mistakes}', String(mistakes));
   }
 
   const sessionEndMessage = getSessionEndMessage();
@@ -131,14 +131,14 @@ export function App() {
   if (!nameConfirmed) {
     return <div className="app">
       <section>
-        <h2>Wpisz swoje imię</h2>
-        <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="Imię" />
+        <h2>{tr.enterNameTitle}</h2>
+        <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder={tr.namePlaceholder} />
         <button onClick={() => {
           const nextName = nameInput.trim();
           if (!nextName) return;
           setProfile((p) => ({ ...p, userName: nextName }));
           setNameConfirmed(true);
-        }}>Start</button>
+        }}>{tr.startSession}</button>
       </section>
     </div>;
   }
@@ -163,7 +163,7 @@ export function App() {
       <div className="feedback">{ended ? sessionEndMessage : feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' '}</div>
 
       {ended && <div className="timeup">
-        <p>{timed && remaining <= 0 ? tr.timeUpQuestion : 'Zagrać kolejną sesję?'}</p>
+        <p>{timed && remaining <= 0 ? tr.timeUpQuestion : tr.nextSessionQuestion}</p>
         <button className="restart" onClick={restartSession}>{tr.restartSession}</button>
       </div>}
 
@@ -201,7 +201,7 @@ export function App() {
       }} />
       <div>{importMessage}</div>
     </section>}
-    {profile.session.lastScreen === 'stats' && <section><div>{tr.correct}: {profile.session.currentStats.correct} · {tr.wrong}: {profile.session.currentStats.wrong}</div><table><thead><tr><th>Gracz</th><th>Monety</th><th>Data</th></tr></thead><tbody>{profile.leaderboard.map((entry, idx) => <tr key={`${entry.userName}-${entry.completedAt}-${idx}`}><td>{entry.userName}</td><td>{entry.coins}</td><td>{new Date(entry.completedAt).toLocaleString()}</td></tr>)}</tbody></table></section>}
+    {profile.session.lastScreen === 'stats' && <section><div>{tr.correct}: {profile.session.currentStats.correct} · {tr.wrong}: {profile.session.currentStats.wrong}</div><table><thead><tr><th>{tr.leaderboardPlayer}</th><th>{tr.leaderboardCoins}</th><th>{tr.leaderboardDate}</th></tr></thead><tbody>{profile.leaderboard.map((entry, idx) => <tr key={`${entry.userName}-${entry.completedAt}-${idx}`}><td>{entry.userName}</td><td>{entry.coins}</td><td>{new Date(entry.completedAt).toLocaleString()}</td></tr>)}</tbody></table></section>}
     {profile.session.lastScreen === 'problem-stats' && <section><table><thead><tr><th>{tr.statsProblem}</th><th>{tr.statsCorrect}</th><th>{tr.statsWrong}</th><th>{tr.statsAvgMs}</th><th>{tr.statsDifficulty}</th></tr></thead>
     <tbody>{rows.map((r) => <tr key={r.key}><td>{r.expression}</td><td>{r.correct}</td><td>{r.wrong}</td><td>{r.averageResponseTimeMs}</td><td>{r.difficultyScore}</td></tr>)}</tbody></table></section>}
   </div>;
