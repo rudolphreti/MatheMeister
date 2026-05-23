@@ -19,6 +19,10 @@ export function loadProfile(): ProfileV1 | null {
 function normalizeProfile(profile: ProfileV1): ProfileV1 {
   return {
     ...profile,
+    settings: {
+      ...profile.settings,
+      examplesPerSession: profile.settings.examplesPerSession ?? 10,
+    },
     session: {
       ...profile.session,
       sessionEndsAt: profile.session.sessionEndsAt ?? (profile.session.sessionStartAt ? profile.session.sessionStartAt + profile.session.sessionDurationMs : null),
@@ -47,7 +51,8 @@ function isSettings(x: unknown): x is ProfileV1['settings'] {
     && typeof y.subtractionEnabled === 'boolean'
     && [2, 3, 4, 5].includes(y.terms)
     && typeof y.soundEnabled === 'boolean'
-    && y.language === 'de';
+    && y.language === 'de'
+    && (y.examplesPerSession === undefined || [5, 10, 20, 30].includes(y.examplesPerSession));
 }
 
 function isProblem(x: unknown): x is NonNullable<ProfileV1['session']['activeProblem']> {
