@@ -19,6 +19,7 @@ section { width:100%; }
 .digits-row { grid-column:1 / -1; display:grid; grid-template-columns:repeat(10, minmax(40px, 1fr)); gap:8px; }
 .pad button { font-size:clamp(22px, 5vw, 40px); font-weight:700; padding:clamp(10px, 3vw, 18px); border-radius:12px; }
 .pad .enter { background:#111; color:#fff; }
+.start-session { background:#2e7d32; color:#fff; font-weight:700; }
 
 table { width:100%; border-collapse: collapse; font-size:clamp(14px, 2.2vw, 24px); }
 th, td { border:2px solid #000; padding:8px; text-align:left; }

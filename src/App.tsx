@@ -39,11 +39,8 @@ export function App() {
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const [importMessage, setImportMessage] = useState<string>('');
   const [now, setNow] = useState(() => Date.now());
-  const [nameInput, setNameInput] = useState('');
-  const [nameConfirmed, setNameConfirmed] = useState<boolean>(() => {
-    const loaded = loadProfile();
-    return Boolean(loaded?.userName?.trim());
-  });
+  const [nameInput, setNameInput] = useState(() => profile.userName);
+  const [nameConfirmed, setNameConfirmed] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
@@ -150,17 +147,21 @@ export function App() {
 
   const sessionEndMessage = getSessionEndMessage();
 
+  function confirmNameAndStart() {
+    const nextName = nameInput.trim();
+    if (!nextName) return;
+    setProfile((p) => ({ ...p, userName: nextName }));
+    setNameConfirmed(true);
+  }
+
   if (!nameConfirmed) {
     return <div className="app">
       <section>
         <h2>{tr.enterNameTitle}</h2>
-        <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder={tr.namePlaceholder} />
-        <button onClick={() => {
-          const nextName = nameInput.trim();
-          if (!nextName) return;
-          setProfile((p) => ({ ...p, userName: nextName }));
-          setNameConfirmed(true);
-        }}>{tr.startSession}</button>
+        <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => {
+          if (e.key === 'Enter') confirmNameAndStart();
+        }} placeholder={tr.namePlaceholder} />
+        <button className="start-session" onClick={confirmNameAndStart}>{tr.startSession}</button>
       </section>
     </div>;
   }
