@@ -99,12 +99,13 @@ export function App() {
 
   function resetSession() {
     const next = mkDefault();
+    const settingsToKeep = profile.settings;
     setFeedback(null);
     setImportMessage('');
     setMenuOpen(false);
     setNameInput('');
     setNameConfirmed(false);
-    setProfile(next);
+    setProfile({ ...next, settings: settingsToKeep });
   }
 
   function submit() {
