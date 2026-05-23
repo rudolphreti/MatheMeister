@@ -111,6 +111,23 @@ export function App() {
 
   const rows = sortStats(profile.problemStats);
 
+  function getSessionEndMessage(): string {
+    if (!ended) return '';
+    const mistakes = profile.session.currentStats.wrong;
+    if (timed && remaining <= 0) {
+      if (mistakes === 0) return '⏰ Czas minął. Świetna robota — 0 błędów!';
+      if (mistakes <= 2) return `⏰ Czas minął. Bardzo dobrze, tylko ${mistakes} błęd${mistakes === 1 ? 'u' : 'y'}.`;
+      if (mistakes <= 5) return `⏰ Czas minął. Nieźle, popełniłeś ${mistakes} błędów — mogłoby być lepiej.`;
+      return `⏰ Czas minął. Popełniłeś ${mistakes} błędów, ćwicz dalej.`;
+    }
+    if (mistakes === 0) return '🎉 Gratulacje! Wykonałeś wszystkie zadania przed czasem bez błędów!';
+    if (mistakes <= 2) return `🎉 Gratulacje! Wykonałeś wszystkie zadania przed czasem, tylko ${mistakes} błęd${mistakes === 1 ? 'u' : 'y'}.`;
+    if (mistakes <= 5) return `👍 Nieźle! Wykonałeś wszystkie zadania przed czasem, ale popełniłeś ${mistakes} błędów.`;
+    return `📘 Wykonałeś wszystkie zadania przed czasem, ale popełniłeś ${mistakes} błędów — ćwicz dalej.`;
+  }
+
+  const sessionEndMessage = getSessionEndMessage();
+
   if (!nameConfirmed) {
     return <div className="app">
       <section>
@@ -143,10 +160,10 @@ export function App() {
       <div className="expr">{profile.session.activeProblem?.expression ?? '...'}</div>
       <div className="input">{profile.session.typedAnswer || '0'}</div>
 
-      <div className="feedback">{ended ? `⏰ ${tr.timeUpTitle}` : feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' '}</div>
+      <div className="feedback">{ended ? sessionEndMessage : feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' '}</div>
 
       {ended && <div className="timeup">
-        <p>{tr.timeUpQuestion}</p>
+        <p>{timed && remaining <= 0 ? tr.timeUpQuestion : 'Zagrać kolejną sesję?'}</p>
         <button className="restart" onClick={restartSession}>{tr.restartSession}</button>
       </div>}
 
@@ -163,7 +180,11 @@ export function App() {
       <label>{tr.minutesLabel} <select value={profile.settings.sessionMinutes} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, sessionMinutes: Number(e.target.value) as Settings['sessionMinutes'] } }))}>{[1, 3, 5, 10, 15].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
       <label>{tr.maxLabel} <select value={profile.settings.max} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, max: Number(e.target.value) as Settings['max'] } }))}>{[5, 10, 20].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
       <label>{tr.termsLabel} <select value={profile.settings.terms} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, terms: Number(e.target.value) as Settings['terms'] } }))}>{[2, 3, 4, 5].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
-      <label>{tr.examplesPerSessionLabel} <select value={profile.settings.examplesPerSession} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, examplesPerSession: Number(e.target.value) as Settings['examplesPerSession'] } }))}>{[5, 10, 20, 30].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
+      <label>{tr.examplesPerSessionLabel} <input type="number" min={1} max={200} step={1} value={profile.settings.examplesPerSession} onChange={(e) => {
+        const value = Number(e.target.value);
+        if (!Number.isFinite(value)) return;
+        setProfile((p) => ({ ...p, settings: { ...p.settings, examplesPerSession: Math.max(1, Math.min(200, Math.floor(value))) } }));
+      }} /></label>
       <button onClick={() => { const blob = new Blob([exportProfile(profile)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'math-profile.json'; a.click(); }}>{tr.exportJson}</button>
       <input type="file" accept="application/json" onChange={async (e) => {
         const file = e.target.files?.[0];

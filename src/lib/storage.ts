@@ -57,7 +57,7 @@ function isSettings(x: unknown): x is ProfileV1['settings'] {
     && [2, 3, 4, 5].includes(y.terms)
     && typeof y.soundEnabled === 'boolean'
     && y.language === 'de'
-    && (y.examplesPerSession === undefined || [5, 10, 20, 30].includes(y.examplesPerSession));
+    && (y.examplesPerSession === undefined || (Number.isInteger(y.examplesPerSession) && y.examplesPerSession >= 1 && y.examplesPerSession <= 200));
 }
 
 function isProblem(x: unknown): x is NonNullable<ProfileV1['session']['activeProblem']> {
