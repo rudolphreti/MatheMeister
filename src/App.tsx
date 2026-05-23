@@ -33,7 +33,10 @@ export function App() {
   const [importMessage, setImportMessage] = useState<string>('');
   const [now, setNow] = useState(() => Date.now());
   const [nameInput, setNameInput] = useState('');
-  const [nameConfirmed, setNameConfirmed] = useState(false);
+  const [nameConfirmed, setNameConfirmed] = useState<boolean>(() => {
+    const loaded = loadProfile();
+    return Boolean(loaded?.userName?.trim());
+  });
   const [menuOpen, setMenuOpen] = useState(false);
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
@@ -79,7 +82,6 @@ export function App() {
     const nextProblem = generateProblem(profile.settings);
     const shouldSaveScore = profile.userName.trim().length > 0 && (profile.session.currentStats.correct + profile.session.currentStats.wrong > 0);
     setFeedback(null);
-    setNameConfirmed(false);
     setProfile((p) => ({
       ...p,
       leaderboard: shouldSaveScore ? sortLeaderboard([...p.leaderboard, { userName: p.userName.trim(), coins: p.session.coins, completedAt: Date.now() }]) : p.leaderboard,
@@ -93,6 +95,17 @@ export function App() {
         currentStats: { correct: 0, wrong: 0 }
       }
     }));
+  }
+
+  function resetSession() {
+    const next = mkDefault();
+    const settingsToKeep = profile.settings;
+    setFeedback(null);
+    setImportMessage('');
+    setMenuOpen(false);
+    setNameInput('');
+    setNameConfirmed(false);
+    setProfile({ ...next, settings: settingsToKeep });
   }
 
   function submit() {
@@ -156,7 +169,7 @@ export function App() {
       {menuOpen && <div className="menu-panel">{(['practice', 'settings', 'stats', 'problem-stats'] as const).map((s) => <button key={s} onClick={() => {
         setProfile((p) => ({ ...p, session: { ...p.session, lastScreen: s } }));
         setMenuOpen(false);
-      }}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : s === 'problem-stats' ? tr.problemStats : tr.stats}</button>)}</div>}
+      }}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : s === 'problem-stats' ? tr.problemStats : tr.stats}</button>)}<button style={{ background: '#c62828', color: '#fff' }} onClick={resetSession}>Reset</button></div>}
     </nav>
     {profile.session.lastScreen === 'practice' && <section className="practice">
       <div className="topbar">
