@@ -45,6 +45,8 @@ export interface SessionState {
 
 export interface ProfileV1 {
   schemaVersion: 1;
+  userName: string;
+  leaderboard: Array<{ userName: string; coins: number; completedAt: number }>;
   settings: Settings;
   session: SessionState;
   problemStats: Record<string, ProblemStat>;
