@@ -42,6 +42,7 @@ export function App() {
   const [nameInput, setNameInput] = useState(() => profile.userName);
   const [nameConfirmed, setNameConfirmed] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [deferredProblems, setDeferredProblems] = useState<NonNullable<ProfileV1['session']['activeProblem']}[]>([]);
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
 
@@ -87,6 +88,7 @@ export function App() {
     const nextProblem = generateProblem(profile.settings);
     const shouldSaveScore = profile.userName.trim().length > 0 && (profile.session.currentStats.correct + profile.session.currentStats.wrong > 0);
     setFeedback(null);
+    setDeferredProblems([]);
     setProfile((p) => ({
       ...p,
       leaderboard: shouldSaveScore ? sortLeaderboard([...p.leaderboard, { userName: p.userName.trim(), coins: p.session.coins, completedAt: Date.now() }]) : p.leaderboard,
@@ -108,6 +110,7 @@ export function App() {
     setFeedback(null);
     setImportMessage('');
     setMenuOpen(false);
+    setDeferredProblems([]);
     setNameInput('');
     setNameConfirmed(false);
     setProfile({ ...next, settings: settingsToKeep });
@@ -123,9 +126,31 @@ export function App() {
     const coins = coinReward(ms, correct);
     if (coins > 0) playCoinSound(profile.settings.soundEnabled);
     const stat = updateProblemStat(profile.problemStats[profile.session.activeProblem.key], profile.session.activeProblem, correct, ms, Date.now());
-    const next = pickWeightedProblem(pool, { ...profile.problemStats, [stat.key]: stat }, profile.session.activeProblem.key);
+    const queuedNext = deferredProblems[0] ?? null;
+    const next = queuedNext
+      ? queuedNext
+      : pickWeightedProblem(pool, { ...profile.problemStats, [stat.key]: stat }, profile.session.activeProblem.key);
     setFeedback(correct ? 'correct' : 'wrong');
+    if (queuedNext) setDeferredProblems((q) => q.slice(1));
     setProfile((p) => ({ ...p, problemStats: { ...p.problemStats, [stat.key]: stat }, session: { ...p.session, activeProblem: next, typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) } } }));
+  }
+
+  function skipToNext() {
+    if (!profile.session.activeProblem || ended) return;
+    const current = profile.session.activeProblem;
+    const hadDeferredBefore = deferredProblems.length > 0;
+    const updatedQueue = [...deferredProblems, current];
+    if (hadDeferredBefore) {
+      const [next, ...rest] = updatedQueue;
+      setDeferredProblems(rest);
+      setFeedback(null);
+      setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: next, typedAnswer: '' } }));
+      return;
+    }
+    const fresh = pickWeightedProblem(pool, profile.problemStats, current.key);
+    setDeferredProblems(updatedQueue);
+    setFeedback(null);
+    setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: fresh, typedAnswer: '' } }));
   }
 
   const rows = sortStats(profile.problemStats);
@@ -201,6 +226,7 @@ export function App() {
           {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button key={d} disabled={ended} onClick={() => pushDigit(d)}>{d}</button>)}
         </div>
         <button disabled={ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>{tr.del}</button>
+        <button className="next" disabled={ended} onClick={skipToNext}>Nächste</button>
         <button className="enter" disabled={ended} onClick={submit}>{tr.ok} / Enter</button>
       </div>
     </section>}
