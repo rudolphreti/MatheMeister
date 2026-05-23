@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildProblemPool, generateProblem } from './lib/math';
 import { coinReward, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
-import { exportProfile, importProfile, loadProfile, saveProfile } from './lib/storage';
+import { exportProfile, importProfile, loadProfile, loadSettings, saveProfile, saveSettings } from './lib/storage';
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
@@ -28,7 +28,14 @@ function sortStats(stats: Record<string, ProblemStat>): ProblemStat[] {
 }
 
 export function App() {
-  const [profile, setProfile] = useState<ProfileV1>(() => loadProfile() ?? mkDefault());
+  const [profile, setProfile] = useState<ProfileV1>(() => {
+    const loaded = loadProfile();
+    if (loaded) return loaded;
+    const defaultProfile = mkDefault();
+    const savedSettings = loadSettings();
+    if (!savedSettings) return defaultProfile;
+    return { ...defaultProfile, settings: savedSettings };
+  });
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const [importMessage, setImportMessage] = useState<string>('');
   const [now, setNow] = useState(() => Date.now());
@@ -42,6 +49,7 @@ export function App() {
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
 
   useEffect(() => saveProfile(profile), [profile]);
+  useEffect(() => saveSettings(profile.settings), [profile.settings]);
   useEffect(() => setNameInput(profile.userName), [profile.userName]);
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 250);

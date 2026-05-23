@@ -1,6 +1,7 @@
 import { ProfileV1 } from './types';
 
 export const STORAGE_KEY = 'math-practice-app:v1';
+export const SETTINGS_STORAGE_KEY = 'math-practice-app:settings:v1';
 
 export function saveProfile(profile: ProfileV1) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
@@ -12,6 +13,20 @@ export function loadProfile(): ProfileV1 | null {
   try {
     const parsed = JSON.parse(raw);
     if (isProfileV1(parsed)) return normalizeProfile(parsed);
+  } catch {}
+  return null;
+}
+
+export function saveSettings(settings: ProfileV1['settings']) {
+  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+}
+
+export function loadSettings(): ProfileV1['settings'] | null {
+  const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (isSettings(parsed)) return parsed;
   } catch {}
   return null;
 }
