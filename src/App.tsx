@@ -6,7 +6,7 @@ import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 
-const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10 };
+const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice' }, problemStats: {} });
 
 function calculateRemainingMs(profile: ProfileV1): number {
@@ -34,6 +34,7 @@ export function App() {
   const [now, setNow] = useState(() => Date.now());
   const [nameInput, setNameInput] = useState('');
   const [nameConfirmed, setNameConfirmed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
 
@@ -150,7 +151,13 @@ export function App() {
       setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }));
     }
   }} tabIndex={0}>
-    <nav>{(['practice', 'settings', 'stats', 'problem-stats'] as const).map((s) => <button key={s} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, lastScreen: s } }))}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : s === 'problem-stats' ? tr.problemStats : tr.stats}</button>)}</nav>
+    <nav className="main-nav">
+      <button className="hamburger" aria-label={tr.menu} onClick={() => setMenuOpen((v) => !v)}>☰</button>
+      {menuOpen && <div className="menu-panel">{(['practice', 'settings', 'stats', 'problem-stats'] as const).map((s) => <button key={s} onClick={() => {
+        setProfile((p) => ({ ...p, session: { ...p.session, lastScreen: s } }));
+        setMenuOpen(false);
+      }}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : s === 'problem-stats' ? tr.problemStats : tr.stats}</button>)}</div>}
+    </nav>
     {profile.session.lastScreen === 'practice' && <section className="practice">
       <div className="topbar">
         <div className="timer">{timed ? `⏱ ${Math.max(0, Math.ceil(remaining / 1000))}s` : '⏱ ∞'}</div>
@@ -185,6 +192,12 @@ export function App() {
         if (!Number.isFinite(value)) return;
         setProfile((p) => ({ ...p, settings: { ...p.settings, examplesPerSession: Math.max(1, Math.min(200, Math.floor(value))) } }));
       }} /></label>
+      <fieldset>
+        <legend>{tr.exclusionsTitle}</legend>
+        <label><input type="checkbox" checked={profile.settings.excludeResultZero} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, excludeResultZero: e.target.checked } }))} /> {tr.excludeResultZero}</label>
+        <label><input type="checkbox" checked={profile.settings.excludePlusMinusZero} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, excludePlusMinusZero: e.target.checked } }))} /> {tr.excludePlusMinusZero}</label>
+        <label><input type="checkbox" checked={profile.settings.excludePlusMinusOne} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, excludePlusMinusOne: e.target.checked } }))} /> {tr.excludePlusMinusOne}</label>
+      </fieldset>
       <button onClick={() => { const blob = new Blob([exportProfile(profile)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'math-profile.json'; a.click(); }}>{tr.exportJson}</button>
       <input type="file" accept="application/json" onChange={async (e) => {
         const file = e.target.files?.[0];

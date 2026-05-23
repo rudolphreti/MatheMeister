@@ -24,6 +24,9 @@ function normalizeProfile(profile: ProfileV1): ProfileV1 {
     settings: {
       ...profile.settings,
       examplesPerSession: profile.settings.examplesPerSession ?? 10,
+      excludeResultZero: profile.settings.excludeResultZero ?? false,
+      excludePlusMinusZero: profile.settings.excludePlusMinusZero ?? false,
+      excludePlusMinusOne: profile.settings.excludePlusMinusOne ?? false,
     },
     session: {
       ...profile.session,
@@ -57,7 +60,10 @@ function isSettings(x: unknown): x is ProfileV1['settings'] {
     && [2, 3, 4, 5].includes(y.terms)
     && typeof y.soundEnabled === 'boolean'
     && y.language === 'de'
-    && (y.examplesPerSession === undefined || (Number.isInteger(y.examplesPerSession) && y.examplesPerSession >= 1 && y.examplesPerSession <= 200));
+    && (y.examplesPerSession === undefined || (Number.isInteger(y.examplesPerSession) && y.examplesPerSession >= 1 && y.examplesPerSession <= 200))
+    && (y.excludeResultZero === undefined || typeof y.excludeResultZero === 'boolean')
+    && (y.excludePlusMinusZero === undefined || typeof y.excludePlusMinusZero === 'boolean')
+    && (y.excludePlusMinusOne === undefined || typeof y.excludePlusMinusOne === 'boolean');
 }
 
 function isProblem(x: unknown): x is NonNullable<ProfileV1['session']['activeProblem']> {

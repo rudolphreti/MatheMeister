@@ -13,6 +13,9 @@ export interface Settings {
   soundEnabled: boolean;
   language: Language;
   examplesPerSession: number;
+  excludeResultZero: boolean;
+  excludePlusMinusZero: boolean;
+  excludePlusMinusOne: boolean;
 }
 
 export interface Problem {

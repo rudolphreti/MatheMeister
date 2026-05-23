@@ -10,6 +10,19 @@ function evalOps(nums: number[], ops: Operator[]): number {
   return acc;
 }
 
+
+function shouldExcludeProblem(settings: Settings, nums: number[], opsArr: Operator[], answer: number): boolean {
+  if (settings.excludeResultZero && answer === 0) return true;
+  if (settings.excludePlusMinusZero || settings.excludePlusMinusOne) {
+    for (let i = 0; i < opsArr.length; i++) {
+      const next = nums[i + 1];
+      if (settings.excludePlusMinusZero && next === 0) return true;
+      if (settings.excludePlusMinusOne && next === 1) return true;
+    }
+  }
+  return false;
+}
+
 export function generateProblem(settings: Settings): Problem {
   const pool = buildProblemPool(settings);
   if (pool.length === 0) {
@@ -43,8 +56,10 @@ export function buildProblemPool(settings: Settings): Problem[] {
             acc = opsArr[j] === '+' ? acc + nums[j + 1] : acc - nums[j + 1];
             if (acc < min || acc > max) return;
           }
+          const answer = evalOps(nums, opsArr);
+          if (shouldExcludeProblem(settings, nums, opsArr, answer)) return;
           const expr = nums.map((n, i2) => (i2 === 0 ? `${n}` : `${opsArr[i2 - 1]} ${n}`)).join(' ');
-          problems.push({ key: expr.replaceAll(' ', ''), expression: expr, answer: evalOps(nums, opsArr) });
+          problems.push({ key: expr.replaceAll(' ', ''), expression: expr, answer });
           return;
         }
         for (const op of ops) {
@@ -74,8 +89,10 @@ export function buildProblemPool(settings: Settings): Problem[] {
         ok = acc >= min && acc <= max;
       }
       if (ok) {
+        const answer = evalOps(nums, opsArr);
+        if (shouldExcludeProblem(settings, nums, opsArr, answer)) continue;
         const expr = nums.map((n, i2) => (i2 === 0 ? `${n}` : `${opsArr[i2 - 1]} ${n}`)).join(' ');
-        problems.push({ key: expr.replaceAll(' ', ''), expression: expr, answer: evalOps(nums, opsArr) });
+        problems.push({ key: expr.replaceAll(' ', ''), expression: expr, answer });
       }
     }
   }
