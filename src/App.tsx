@@ -6,7 +6,7 @@ import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 
-const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, terms: 2, soundEnabled: true, language: 'de' };
+const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10 };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice' }, problemStats: {} });
 
 function calculateRemainingMs(profile: ProfileV1): number {
@@ -45,7 +45,10 @@ export function App() {
   const remaining = profile.settings.mode === 'timed' && profile.session.sessionEndsAt
     ? Math.max(0, profile.session.sessionEndsAt - now)
     : calculateRemainingMs(profile);
-  const ended = timed && remaining <= 0;
+  const doneExamples = profile.session.currentStats.correct + profile.session.currentStats.wrong;
+  const sessionExamples = profile.settings.examplesPerSession;
+  const endedByExamples = doneExamples >= sessionExamples;
+  const ended = (timed && remaining <= 0) || endedByExamples;
 
   function ensureSessionStart() {
     if (profile.settings.mode === 'timed' && !profile.session.sessionStartAt) {
@@ -109,6 +112,7 @@ export function App() {
       <div className="topbar">
         <div className="timer">{timed ? `⏱ ${Math.max(0, Math.ceil(remaining / 1000))}s` : '⏱ ∞'}</div>
         <div className="coins">🪙 {profile.session.coins}</div>
+        <div className="progress">📘 {tr.sessionProgressLabel}: {doneExamples}/{sessionExamples}</div>
       </div>
       <div className="expr">{profile.session.activeProblem?.expression ?? '...'}</div>
       <div className="input">{profile.session.typedAnswer || '0'}</div>
@@ -133,6 +137,7 @@ export function App() {
       <label>{tr.minutesLabel} <select value={profile.settings.sessionMinutes} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, sessionMinutes: Number(e.target.value) as Settings['sessionMinutes'] } }))}>{[1, 3, 5, 10, 15].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
       <label>{tr.maxLabel} <select value={profile.settings.max} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, max: Number(e.target.value) as Settings['max'] } }))}>{[5, 10, 20].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
       <label>{tr.termsLabel} <select value={profile.settings.terms} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, terms: Number(e.target.value) as Settings['terms'] } }))}>{[2, 3, 4, 5].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
+      <label>{tr.examplesPerSessionLabel} <select value={profile.settings.examplesPerSession} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, examplesPerSession: Number(e.target.value) as Settings['examplesPerSession'] } }))}>{[5, 10, 20, 30].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
       <button onClick={() => { const blob = new Blob([exportProfile(profile)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'math-profile.json'; a.click(); }}>{tr.exportJson}</button>
       <input type="file" accept="application/json" onChange={async (e) => {
         const file = e.target.files?.[0];

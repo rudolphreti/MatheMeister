@@ -15,6 +15,8 @@ export const t = (_lang: Language) => ({
   minutesLabel: 'Minuten',
   maxLabel: 'Maximum',
   termsLabel: 'Terme',
+  examplesPerSessionLabel: 'Beispiele pro Sitzung',
+  sessionProgressLabel: 'Sitzung',
   exportJson: 'JSON exportieren',
   statsProblem: 'Aufgabe',
   statsCorrect: 'Richtig',

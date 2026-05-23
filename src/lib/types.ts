@@ -12,6 +12,7 @@ export interface Settings {
   terms: 2 | 3 | 4 | 5;
   soundEnabled: boolean;
   language: Language;
+  examplesPerSession: 5 | 10 | 20 | 30;
 }
 
 export interface Problem {
