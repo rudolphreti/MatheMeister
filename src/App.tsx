@@ -7,12 +7,17 @@ import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10 };
-const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice' }, problemStats: {} });
+const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice' }, problemStats: {} });
 
 function calculateRemainingMs(profile: ProfileV1): number {
   if (profile.settings.mode !== 'timed') return profile.session.sessionDurationMs;
   if (!profile.session.sessionEndsAt) return profile.session.sessionDurationMs;
   return Math.max(0, profile.session.sessionEndsAt - Date.now());
+}
+
+
+function sortLeaderboard(rows: ProfileV1['leaderboard']) {
+  return rows.slice().sort((a, b) => b.coins - a.coins || b.completedAt - a.completedAt);
 }
 
 function sortStats(stats: Record<string, ProblemStat>): ProblemStat[] {
@@ -27,10 +32,13 @@ export function App() {
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const [importMessage, setImportMessage] = useState<string>('');
   const [now, setNow] = useState(() => Date.now());
+  const [nameInput, setNameInput] = useState('');
+  const [nameConfirmed, setNameConfirmed] = useState(false);
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
 
   useEffect(() => saveProfile(profile), [profile]);
+  useEffect(() => setNameInput(profile.userName), [profile.userName]);
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(id);
@@ -68,9 +76,12 @@ export function App() {
   function restartSession() {
     const durationMs = profile.settings.sessionMinutes * 60000;
     const nextProblem = generateProblem(profile.settings);
+    const shouldSaveScore = profile.userName.trim().length > 0 && (profile.session.currentStats.correct + profile.session.currentStats.wrong > 0);
     setFeedback(null);
+    setNameConfirmed(false);
     setProfile((p) => ({
       ...p,
+      leaderboard: shouldSaveScore ? sortLeaderboard([...p.leaderboard, { userName: p.userName.trim(), coins: p.session.coins, completedAt: Date.now() }]) : p.leaderboard,
       session: {
         ...p.session,
         activeProblem: nextProblem,
@@ -100,6 +111,38 @@ export function App() {
 
   const rows = sortStats(profile.problemStats);
 
+  function getSessionEndMessage(): string {
+    if (!ended) return '';
+    const mistakes = profile.session.currentStats.wrong;
+    if (timed && remaining <= 0) {
+      if (mistakes === 0) return tr.timeUpPerfect;
+      if (mistakes <= 2) return tr.timeUpFewMistakes.replace('{mistakes}', String(mistakes));
+      if (mistakes <= 5) return tr.timeUpSomeMistakes.replace('{mistakes}', String(mistakes));
+      return tr.timeUpManyMistakes.replace('{mistakes}', String(mistakes));
+    }
+    if (mistakes === 0) return tr.donePerfect;
+    if (mistakes <= 2) return tr.doneFewMistakes.replace('{mistakes}', String(mistakes));
+    if (mistakes <= 5) return tr.doneSomeMistakes.replace('{mistakes}', String(mistakes));
+    return tr.doneManyMistakes.replace('{mistakes}', String(mistakes));
+  }
+
+  const sessionEndMessage = getSessionEndMessage();
+
+  if (!nameConfirmed) {
+    return <div className="app">
+      <section>
+        <h2>{tr.enterNameTitle}</h2>
+        <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder={tr.namePlaceholder} />
+        <button onClick={() => {
+          const nextName = nameInput.trim();
+          if (!nextName) return;
+          setProfile((p) => ({ ...p, userName: nextName }));
+          setNameConfirmed(true);
+        }}>{tr.startSession}</button>
+      </section>
+    </div>;
+  }
+
   return <div className="app" onKeyDown={(e) => {
     if (e.key === 'Enter') submit();
     if (/^[0-9]$/.test(e.key)) pushDigit(e.key);
@@ -117,10 +160,10 @@ export function App() {
       <div className="expr">{profile.session.activeProblem?.expression ?? '...'}</div>
       <div className="input">{profile.session.typedAnswer || '0'}</div>
 
-      <div className="feedback">{ended ? `⏰ ${tr.timeUpTitle}` : feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' '}</div>
+      <div className="feedback">{ended ? sessionEndMessage : feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' '}</div>
 
       {ended && <div className="timeup">
-        <p>{tr.timeUpQuestion}</p>
+        <p>{timed && remaining <= 0 ? tr.timeUpQuestion : tr.nextSessionQuestion}</p>
         <button className="restart" onClick={restartSession}>{tr.restartSession}</button>
       </div>}
 
@@ -137,7 +180,11 @@ export function App() {
       <label>{tr.minutesLabel} <select value={profile.settings.sessionMinutes} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, sessionMinutes: Number(e.target.value) as Settings['sessionMinutes'] } }))}>{[1, 3, 5, 10, 15].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
       <label>{tr.maxLabel} <select value={profile.settings.max} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, max: Number(e.target.value) as Settings['max'] } }))}>{[5, 10, 20].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
       <label>{tr.termsLabel} <select value={profile.settings.terms} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, terms: Number(e.target.value) as Settings['terms'] } }))}>{[2, 3, 4, 5].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
-      <label>{tr.examplesPerSessionLabel} <select value={profile.settings.examplesPerSession} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, examplesPerSession: Number(e.target.value) as Settings['examplesPerSession'] } }))}>{[5, 10, 20, 30].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
+      <label>{tr.examplesPerSessionLabel} <input type="number" min={1} max={200} step={1} value={profile.settings.examplesPerSession} onChange={(e) => {
+        const value = Number(e.target.value);
+        if (!Number.isFinite(value)) return;
+        setProfile((p) => ({ ...p, settings: { ...p.settings, examplesPerSession: Math.max(1, Math.min(200, Math.floor(value))) } }));
+      }} /></label>
       <button onClick={() => { const blob = new Blob([exportProfile(profile)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'math-profile.json'; a.click(); }}>{tr.exportJson}</button>
       <input type="file" accept="application/json" onChange={async (e) => {
         const file = e.target.files?.[0];
@@ -154,7 +201,7 @@ export function App() {
       }} />
       <div>{importMessage}</div>
     </section>}
-    {profile.session.lastScreen === 'stats' && <section><div>{tr.correct}: {profile.session.currentStats.correct} · {tr.wrong}: {profile.session.currentStats.wrong}</div></section>}
+    {profile.session.lastScreen === 'stats' && <section><div>{tr.correct}: {profile.session.currentStats.correct} · {tr.wrong}: {profile.session.currentStats.wrong}</div><table><thead><tr><th>{tr.leaderboardPlayer}</th><th>{tr.leaderboardCoins}</th><th>{tr.leaderboardDate}</th></tr></thead><tbody>{profile.leaderboard.map((entry, idx) => <tr key={`${entry.userName}-${entry.completedAt}-${idx}`}><td>{entry.userName}</td><td>{entry.coins}</td><td>{new Date(entry.completedAt).toLocaleString()}</td></tr>)}</tbody></table></section>}
     {profile.session.lastScreen === 'problem-stats' && <section><table><thead><tr><th>{tr.statsProblem}</th><th>{tr.statsCorrect}</th><th>{tr.statsWrong}</th><th>{tr.statsAvgMs}</th><th>{tr.statsDifficulty}</th></tr></thead>
     <tbody>{rows.map((r) => <tr key={r.key}><td>{r.expression}</td><td>{r.correct}</td><td>{r.wrong}</td><td>{r.averageResponseTimeMs}</td><td>{r.difficultyScore}</td></tr>)}</tbody></table></section>}
   </div>;

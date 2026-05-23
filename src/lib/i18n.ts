@@ -25,5 +25,20 @@ export const t = (_lang: Language) => ({
   statsDifficulty: 'Schwierigkeit',
   timeUpTitle: 'Zeit ist abgelaufen',
   timeUpQuestion: 'Möchtest du neu starten?',
-  restartSession: 'Neu starten'
+  restartSession: 'Neu starten',
+  enterNameTitle: 'Bitte gib deinen Namen ein',
+  namePlaceholder: 'Name',
+  startSession: 'Start',
+  leaderboardPlayer: 'Spieler',
+  leaderboardCoins: 'Münzen',
+  leaderboardDate: 'Datum',
+  nextSessionQuestion: 'Möchtest du eine weitere Sitzung starten?',
+  timeUpPerfect: '⏰ Die Zeit ist um. Großartige Leistung — 0 Fehler!',
+  timeUpFewMistakes: '⏰ Die Zeit ist um. Sehr gut, nur {mistakes} Fehler.',
+  timeUpSomeMistakes: '⏰ Die Zeit ist um. Nicht schlecht, du hast {mistakes} Fehler gemacht — das geht noch besser.',
+  timeUpManyMistakes: '⏰ Die Zeit ist um. Du hast {mistakes} Fehler gemacht, übe weiter.',
+  donePerfect: '🎉 Glückwunsch! Du hast alle Aufgaben vor Ablauf der Zeit fehlerfrei gelöst!',
+  doneFewMistakes: '🎉 Glückwunsch! Du hast alle Aufgaben vor Ablauf der Zeit gelöst, nur {mistakes} Fehler.',
+  doneSomeMistakes: '👍 Nicht schlecht! Du hast alle Aufgaben vor Ablauf der Zeit gelöst, aber {mistakes} Fehler gemacht.',
+  doneManyMistakes: '📘 Du hast alle Aufgaben vor Ablauf der Zeit gelöst, aber {mistakes} Fehler gemacht — übe weiter.'
 });

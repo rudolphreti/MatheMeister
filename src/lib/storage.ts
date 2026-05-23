@@ -19,6 +19,8 @@ export function loadProfile(): ProfileV1 | null {
 function normalizeProfile(profile: ProfileV1): ProfileV1 {
   return {
     ...profile,
+    userName: profile.userName ?? '',
+    leaderboard: (profile.leaderboard ?? []).slice().sort((a, b) => b.coins - a.coins || b.completedAt - a.completedAt),
     settings: {
       ...profile.settings,
       examplesPerSession: profile.settings.examplesPerSession ?? 10,
@@ -35,6 +37,9 @@ export function isProfileV1(x: unknown): x is ProfileV1 {
   const y = x as ProfileV1;
   if (y.schemaVersion !== 1) return false;
   if (!isSettings(y.settings)) return false;
+  if (typeof y.userName !== 'string') return false;
+  if (!Array.isArray(y.leaderboard)) return false;
+  if (!y.leaderboard.every((entry) => entry && typeof entry.userName === 'string' && Number.isInteger(entry.coins) && Number.isFinite(entry.completedAt))) return false;
   if (!isSession(y.session)) return false;
   if (!isProblemStats(y.problemStats)) return false;
   return true;
@@ -52,7 +57,7 @@ function isSettings(x: unknown): x is ProfileV1['settings'] {
     && [2, 3, 4, 5].includes(y.terms)
     && typeof y.soundEnabled === 'boolean'
     && y.language === 'de'
-    && (y.examplesPerSession === undefined || [5, 10, 20, 30].includes(y.examplesPerSession));
+    && (y.examplesPerSession === undefined || (Number.isInteger(y.examplesPerSession) && y.examplesPerSession >= 1 && y.examplesPerSession <= 200));
 }
 
 function isProblem(x: unknown): x is NonNullable<ProfileV1['session']['activeProblem']> {

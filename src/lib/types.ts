@@ -12,7 +12,7 @@ export interface Settings {
   terms: 2 | 3 | 4 | 5;
   soundEnabled: boolean;
   language: Language;
-  examplesPerSession: 5 | 10 | 20 | 30;
+  examplesPerSession: number;
 }
 
 export interface Problem {
@@ -45,6 +45,8 @@ export interface SessionState {
 
 export interface ProfileV1 {
   schemaVersion: 1;
+  userName: string;
+  leaderboard: Array<{ userName: string; coins: number; completedAt: number }>;
   settings: Settings;
   session: SessionState;
   problemStats: Record<string, ProblemStat>;
