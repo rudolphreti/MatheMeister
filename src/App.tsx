@@ -5,7 +5,7 @@ import { exportProfile, importProfile, loadLastUserName, loadProfile, saveLastUs
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
-import { ensureActiveProblemIsAllowed } from './lib/session';
+import { ensureActiveProblemIsAllowed, moveSkippedProblemToQueueEnd } from './lib/session';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice' }, problemStats: {} });
@@ -67,6 +67,7 @@ export function App() {
   const [nameConfirmed, setNameConfirmed] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pendingProblemStats, setPendingProblemStats] = useState<Record<string, ProblemStat>>({});
+  const [problemQueue, setProblemQueue] = useState<string[]>([]);
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
   const customProblems = useMemo(() => parseCustomProblems(profile.settings), [profile.settings]);
@@ -84,6 +85,22 @@ export function App() {
       setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: generateProblem(p.settings), problemStartedAt: Date.now() } }));
     }
   }, [profile.session.activeProblem, profile.settings]);
+
+  useEffect(() => {
+    const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
+    const allowedProblems = Array.from(combinedPoolMap.values());
+    if (allowedProblems.length === 0) {
+      setProblemQueue([]);
+      return;
+    }
+
+    setProblemQueue((current) => {
+      const allowedKeys = new Set(allowedProblems.map((problem) => problem.key));
+      const kept = current.filter((key) => allowedKeys.has(key));
+      const missing = allowedProblems.map((problem) => problem.key).filter((key) => !kept.includes(key));
+      return [...kept, ...missing];
+    });
+  }, [customProblems, pool]);
 
 
   useEffect(() => {
@@ -164,7 +181,10 @@ export function App() {
     const stat = updateProblemStat(sessionStats[profile.session.activeProblem.key], profile.session.activeProblem, correct, ms, Date.now());
     const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
     const nextPool = Array.from(combinedPoolMap.values());
-    const next = pickWeightedProblem(
+    const byKey = new Map(nextPool.map((problem) => [problem.key, problem]));
+    const firstFromQueue = problemQueue.find((key) => key !== profile.session.activeProblem?.key && byKey.has(key));
+    const queuedNext = firstFromQueue ? byKey.get(firstFromQueue) ?? null : null;
+    const next = queuedNext ?? pickWeightedProblem(
       nextPool,
       { ...sessionStats, [stat.key]: stat },
       profile.session.activeProblem.key,
@@ -172,7 +192,24 @@ export function App() {
     );
     setFeedback(correct ? 'correct' : 'wrong');
     setPendingProblemStats((current) => ({ ...current, [stat.key]: stat }));
+    setProblemQueue((current) => moveSkippedProblemToQueueEnd(current, profile.session.activeProblem?.key ?? ''));
     setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: next, problemStartedAt: Date.now(), typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) } } }));
+  }
+
+  function skipToNextProblem() {
+    if (!profile.session.activeProblem || ended) return;
+
+    const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
+    const nextPool = Array.from(combinedPoolMap.values());
+    const nextQueue = moveSkippedProblemToQueueEnd(problemQueue, profile.session.activeProblem.key);
+    const byKey = new Map(nextPool.map((problem) => [problem.key, problem]));
+    const nextKey = nextQueue.find((key) => key !== profile.session.activeProblem?.key && byKey.has(key));
+    const nextProblem = nextKey ? byKey.get(nextKey) ?? null : null;
+    if (!nextProblem) return;
+
+    setProblemQueue(nextQueue);
+    setFeedback(null);
+    setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: nextProblem, problemStartedAt: Date.now(), typedAnswer: '' } }));
   }
 
   const rows = sortStats(mergeProblemStats(profile.problemStats, pendingProblemStats));
@@ -280,8 +317,9 @@ export function App() {
         <div className="digits-row">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button key={d} disabled={ended} onClick={() => pushDigit(d)}>{d}</button>)}
         </div>
-        <button disabled={ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>{tr.del}</button>
-        <button className="enter" disabled={ended} onClick={submit}>{tr.ok} / Enter</button>
+        <button className="delete" disabled={ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>⌫ {tr.del}</button>
+        <button className="next" disabled={ended} onClick={skipToNextProblem}>→ {tr.next}</button>
+        <button className="enter" disabled={ended} onClick={submit}>↵ {tr.ok}</button>
       </div>
     </section>}
     {profile.session.lastScreen === 'settings' && <section>

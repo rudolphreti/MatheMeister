@@ -18,7 +18,9 @@ section { width:100%; }
 .pad { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; }
 .digits-row { grid-column:1 / -1; display:grid; grid-template-columns:repeat(10, minmax(40px, 1fr)); gap:8px; }
 .pad button { font-size:clamp(22px, 5vw, 40px); font-weight:700; padding:clamp(10px, 3vw, 18px); border-radius:12px; }
-.pad .enter { background:#111; color:#fff; }
+.pad .enter { background:#2e7d32; color:#fff; }
+.pad .delete { background:#c62828; color:#fff; }
+.pad .next { background:#1565c0; color:#fff; }
 
 table { width:100%; border-collapse: collapse; font-size:clamp(14px, 2.2vw, 24px); }
 th, td { border:2px solid #000; padding:8px; text-align:left; }
