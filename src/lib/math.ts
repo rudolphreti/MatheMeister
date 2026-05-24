@@ -13,14 +13,13 @@ function evalOps(nums: number[], ops: Operator[]): number {
 
 function shouldExcludeProblem(settings: Settings, nums: number[], opsArr: Operator[], answer: number): boolean {
   if (settings.excludeResultZero && answer === 0) return true;
+  if (settings.excludePlusMinusZero && nums.includes(0)) return true;
+  if (settings.excludePlusMinusOne && nums.includes(1)) return true;
   if (settings.excludePlusMinusZero || settings.excludePlusMinusOne) {
     for (let i = 0; i < opsArr.length; i++) {
-      const prev = nums[i];
       const next = nums[i + 1];
       if (settings.excludePlusMinusZero && next === 0) return true;
       if (settings.excludePlusMinusOne && next === 1) return true;
-      if (settings.excludePlusMinusZero && opsArr[i] === '+' && prev === 0) return true;
-      if (settings.excludePlusMinusOne && opsArr[i] === '-' && prev === 1) return true;
     }
   }
   return false;
