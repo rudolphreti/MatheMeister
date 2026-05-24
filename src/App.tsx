@@ -180,10 +180,7 @@ export function App() {
     const stat = updateProblemStat(sessionStats[profile.session.activeProblem.key], profile.session.activeProblem, correct, ms, Date.now());
     const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
     const nextPool = Array.from(combinedPoolMap.values());
-    const byKey = new Map(nextPool.map((problem) => [problem.key, problem]));
-    const firstFromQueue = problemQueue.find((key) => key !== profile.session.activeProblem?.key && byKey.has(key));
-    const queuedNext = firstFromQueue ? byKey.get(firstFromQueue) ?? null : null;
-    const next = queuedNext ?? pickWeightedProblem(
+    const next = pickWeightedProblem(
       nextPool,
       { ...sessionStats, [stat.key]: stat },
       profile.session.activeProblem.key
