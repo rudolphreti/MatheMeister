@@ -44,6 +44,18 @@ function toErrorRedShade(ratio: number): string {
   return `rgb(${channel}, 0, 0)`;
 }
 
+
+function parseBinaryOperation(expression: string): { left: number; right: number; operator: '+' | '-'; result: number } | null {
+  const match = expression.match(/^\s*(\d+)\s*([+-])\s*(\d+)\s*=\s*(-?\d+)\s*$/);
+  if (!match) return null;
+  const left = Number(match[1]);
+  const operator = match[2] as '+' | '-';
+  const right = Number(match[3]);
+  const result = Number(match[4]);
+  if (!Number.isFinite(left) || !Number.isFinite(right) || !Number.isFinite(result)) return null;
+  return { left, right, operator, result };
+}
+
 export function App() {
   const [profile, setProfile] = useState<ProfileV1>(() => loadProfile() ?? mkDefault());
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
@@ -152,7 +164,11 @@ export function App() {
     const totals: Record<string, { attempts: number; correct: number; wrong: number }> = {};
 
     Object.values(sourceStats).forEach((stat) => {
-      totals[stat.key] = {
+      const parsed = parseBinaryOperation(stat.expression);
+      if (!parsed) return;
+      if (parsed.result < 0 || parsed.result > 20) return;
+      const bucketKey = `${parsed.operator}:${parsed.left}:${parsed.right}`;
+      totals[bucketKey] = {
         attempts: stat.attempts,
         correct: stat.correct,
         wrong: stat.wrong,
@@ -317,10 +333,10 @@ export function App() {
                 if (result < 0 || result > 20) {
                   return <td key={`empty-${operation.key}-${left}-${right}`} className="overview-cell overview-empty">—</td>;
                 }
-                const operationKey = `${left}${operation.key}${right}=${result}`;
+                const operationKey = `${operation.key}:${left}:${right}`;
                 const stats = operationStats.totals[operationKey] ?? { attempts: 0, correct: 0, wrong: 0 };
                 const hasAttempts = stats.attempts > 0;
-                const bg = hasAttempts ? toGrayShade(stats.attempts / operationStats.maxAttempts) : '#fff';
+                const bg = hasAttempts ? toGrayShade(Math.max(0.2, stats.attempts / operationStats.maxAttempts)) : '#fff';
                 const color = stats.wrong > 0 ? toErrorRedShade(stats.wrong / operationStats.maxWrong) : '#111';
                 const title = `${left} ${operation.key} ${right} = ${result} • ${tr.statsTooltipAttempts}: ${stats.attempts} • ${tr.statsTooltipCorrect}: ${stats.correct} • ${tr.statsTooltipWrong}: ${stats.wrong}`;
                 return <td key={`result-${operation.key}-${left}-${right}`} className={`overview-cell ${hasAttempts ? 'overview-hit' : ''}`} style={{ background: bg, color }} title={title}>{result}</td>;

@@ -44,4 +44,4 @@ legend { padding:0 6px; font-weight:700; }
 .overview-cell { text-align: center; font-weight: 700; min-width: 36px; padding: 6px; }
 .overview-empty { color: #666; background: #f7f7f7; }
 
-.overview-hit { outline: 2px solid #222; outline-offset: -2px; }
+.overview-hit { outline: 3px solid #111; outline-offset: -3px; }
