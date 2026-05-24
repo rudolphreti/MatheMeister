@@ -46,6 +46,7 @@ function normalizeProfile(profile: ProfileV1): ProfileV1 {
       excludePlusMinusOne: profile.settings.excludePlusMinusOne ?? false,
       customTasksText: profile.settings.customTasksText ?? '',
     },
+    problemStats: Object.fromEntries(Object.entries(profile.problemStats ?? {}).map(([key, value]) => [key, { ...value, errorDebt: value.errorDebt ?? 0, lastSeenAt: value.lastSeenAt ?? null, lastSeenTurn: value.lastSeenTurn ?? null, excluded: value.excluded ?? false }])),
     session: {
       ...profile.session,
       problemStartedAt: profile.session.problemStartedAt ?? null,
@@ -118,7 +119,10 @@ function isProblemStat(x: unknown): x is ProfileV1['problemStats'][string] {
     && Number.isInteger(y.wrong)
     && Number.isFinite(y.averageResponseTimeMs)
     && Number.isFinite(y.difficultyScore)
-    && Number.isFinite(y.lastSeenAt);
+    && (y.errorDebt === undefined || Number.isInteger(y.errorDebt))
+    && (y.lastSeenAt === null || Number.isFinite(y.lastSeenAt))
+    && (y.lastSeenTurn === undefined || y.lastSeenTurn === null || Number.isInteger(y.lastSeenTurn))
+    && (y.excluded === undefined || typeof y.excluded === 'boolean');
 }
 
 function isProblemStats(x: unknown): x is ProfileV1['problemStats'] {

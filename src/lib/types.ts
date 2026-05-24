@@ -33,7 +33,10 @@ export interface ProblemStat {
   wrong: number;
   averageResponseTimeMs: number;
   difficultyScore: number;
-  lastSeenAt: number;
+  errorDebt: number;
+  lastSeenAt: number | null;
+  lastSeenTurn: number | null;
+  excluded: boolean;
 }
 
 export interface SessionState {
