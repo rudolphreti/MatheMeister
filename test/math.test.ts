@@ -14,6 +14,12 @@ describe('math pool', () => {
     expect(pool.some((p) => p.expression.startsWith('0 + '))).toBe(false);
   });
 
+  it('excludes +1 tasks like 1 + x and x + 1 when one exclusion is enabled', () => {
+    const pool = buildProblemPool({ mode:'timed', sessionMinutes:10, min:0, max:5, additionEnabled:true, subtractionEnabled:true, terms:2, soundEnabled:true, language:'de', examplesPerSession:10, excludeResultZero:false, excludePlusMinusZero:false, excludePlusMinusOne:true, customTasksText:'' });
+    expect(pool.some((p) => p.expression.startsWith('1 + '))).toBe(false);
+    expect(pool.some((p) => p.expression.endsWith(' + 1'))).toBe(false);
+  });
+
   it('parses custom one-line tasks', () => {
     const settings = { mode:'timed', sessionMinutes:10, min:0, max:20, additionEnabled:true, subtractionEnabled:true, terms:2, soundEnabled:true, language:'de', examplesPerSession:10, excludeResultZero:false, excludePlusMinusZero:false, excludePlusMinusOne:false, customTasksText:'12+3\n17-14\nfoo\n3+7' } as const;
     const pool = parseCustomProblems(settings);
