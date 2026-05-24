@@ -33,10 +33,7 @@ export function App() {
   const [importMessage, setImportMessage] = useState<string>('');
   const [now, setNow] = useState(() => Date.now());
   const [nameInput, setNameInput] = useState('');
-  const [nameConfirmed, setNameConfirmed] = useState<boolean>(() => {
-    const loaded = loadProfile();
-    return Boolean(loaded?.userName?.trim());
-  });
+  const [nameConfirmed, setNameConfirmed] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
@@ -62,13 +59,6 @@ export function App() {
   const endedByExamples = doneExamples >= sessionExamples;
   const ended = (timed && remaining <= 0) || endedByExamples;
 
-  function ensureSessionStart() {
-    if (profile.settings.mode === 'timed' && !profile.session.sessionStartAt) {
-      const startAt = Date.now();
-      const durationMs = profile.settings.sessionMinutes * 60000;
-      setProfile((p) => ({ ...p, session: { ...p.session, sessionStartAt: startAt, sessionEndsAt: startAt + durationMs, sessionDurationMs: durationMs } }));
-    }
-  }
 
   function pushDigit(digit: string) {
     if (ended) return;
@@ -103,14 +93,13 @@ export function App() {
     setFeedback(null);
     setImportMessage('');
     setMenuOpen(false);
-    setNameInput('');
+    setNameInput(profile.userName);
     setNameConfirmed(false);
     setProfile({ ...next, settings: settingsToKeep });
   }
 
   function submit() {
     if (!profile.session.activeProblem || ended) return;
-    ensureSessionStart();
     const answer = Number(profile.session.typedAnswer);
     const correct = answer === profile.session.activeProblem.answer;
     const start = profile.session.sessionStartAt ?? Date.now();
@@ -142,17 +131,32 @@ export function App() {
 
   const sessionEndMessage = getSessionEndMessage();
 
+  const handleStartSession = () => {
+    const nextName = nameInput.trim();
+    if (!nextName) return;
+
+    const startAt = Date.now();
+    const durationMs = profile.settings.sessionMinutes * 60000;
+
+    setProfile((p) => ({
+      ...p,
+      userName: nextName,
+      session: {
+        ...p.session,
+        sessionStartAt: p.settings.mode === 'timed' ? startAt : null,
+        sessionEndsAt: p.settings.mode === 'timed' ? startAt + durationMs : null,
+        sessionDurationMs: durationMs
+      }
+    }));
+    setNameConfirmed(true);
+  };
+
   if (!nameConfirmed) {
     return <div className="app">
       <section>
         <h2>{tr.enterNameTitle}</h2>
-        <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder={tr.namePlaceholder} />
-        <button onClick={() => {
-          const nextName = nameInput.trim();
-          if (!nextName) return;
-          setProfile((p) => ({ ...p, userName: nextName }));
-          setNameConfirmed(true);
-        }}>{tr.startSession}</button>
+        <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleStartSession(); }} placeholder={tr.namePlaceholder} />
+        <button onClick={handleStartSession}>{tr.startSession}</button>
       </section>
     </div>;
   }
