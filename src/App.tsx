@@ -31,6 +31,32 @@ function sortStats(stats: Record<string, ProblemStat>): ProblemStat[] {
     || a.key.localeCompare(b.key));
 }
 
+
+function extractResult(expression: string): number | null {
+  const parts = expression.split('=');
+  if (parts.length < 2) return null;
+  const value = Number(parts[parts.length - 1].trim());
+  return Number.isFinite(value) ? value : null;
+}
+
+function extractOperator(expression: string): '+' | '-' | null {
+  if (expression.includes('+')) return '+';
+  if (expression.includes('-')) return '-';
+  return null;
+}
+
+function toGrayShade(ratio: number): string {
+  const clamped = Math.max(0, Math.min(1, ratio));
+  const value = Math.round(250 - (120 * clamped));
+  return `rgb(${value}, ${value}, ${value})`;
+}
+
+function toErrorRedShade(ratio: number): string {
+  const clamped = Math.max(0, Math.min(1, ratio));
+  const channel = Math.round(50 + 140 * clamped);
+  return `rgb(${channel}, 0, 0)`;
+}
+
 export function App() {
   const [profile, setProfile] = useState<ProfileV1>(() => loadProfile() ?? mkDefault());
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
@@ -134,6 +160,30 @@ export function App() {
 
   const rows = sortStats(mergeProblemStats(profile.problemStats, pendingProblemStats));
 
+  const resultStats = useMemo(() => {
+    const sourceStats = mergeProblemStats(profile.problemStats, pendingProblemStats);
+    const totals: Record<string, { attempts: number; correct: number; wrong: number }> = {};
+    Object.values(sourceStats).forEach((stat) => {
+      const result = extractResult(stat.expression);
+      const operator = extractOperator(stat.expression);
+      if (result === null || !operator) return;
+      if (result < 0 || result > 20) return;
+      const bucketKey = `${operator}:${result}`;
+      const current = totals[bucketKey] ?? { attempts: 0, correct: 0, wrong: 0 };
+      totals[bucketKey] = {
+        attempts: current.attempts + stat.attempts,
+        correct: current.correct + stat.correct,
+        wrong: current.wrong + stat.wrong,
+      };
+    });
+
+    const maxAttempts = Math.max(1, ...Object.values(totals).map((x) => x.attempts));
+    const maxWrong = Math.max(1, ...Object.values(totals).map((x) => x.wrong));
+
+    return { totals, maxAttempts, maxWrong };
+  }, [profile.problemStats, pendingProblemStats]);
+
+
   function getSessionEndMessage(): string {
     if (!ended) return '';
     const mistakes = profile.session.currentStats.wrong;
@@ -191,10 +241,10 @@ export function App() {
   }} tabIndex={0}>
     <nav className="main-nav">
       <button className="hamburger" aria-label={tr.menu} onClick={() => setMenuOpen((v) => !v)}>☰</button>
-      {menuOpen && <div className="menu-panel">{(['practice', 'settings', 'stats', 'problem-stats'] as const).map((s) => <button key={s} onClick={() => {
+      {menuOpen && <div className="menu-panel">{(['practice', 'settings', 'stats', 'problem-stats', 'operations-overview'] as const).map((s) => <button key={s} onClick={() => {
         setProfile((p) => ({ ...p, session: { ...p.session, lastScreen: s } }));
         setMenuOpen(false);
-      }}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : s === 'problem-stats' ? tr.problemStats : tr.stats}</button>)}<button style={{ background: '#c62828', color: '#fff' }} onClick={resetSession}>Reset</button></div>}
+      }}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : s === 'problem-stats' ? tr.problemStats : s === 'operations-overview' ? tr.operationsOverview : tr.stats}</button>)}<button style={{ background: '#c62828', color: '#fff' }} onClick={resetSession}>Reset</button></div>}
     </nav>
     {profile.session.lastScreen === 'practice' && <section className="practice">
       <div className="topbar">
@@ -266,5 +316,37 @@ export function App() {
     {profile.session.lastScreen === 'stats' && <section><div>{tr.correct}: {profile.session.currentStats.correct} · {tr.wrong}: {profile.session.currentStats.wrong}</div><table><thead><tr><th>{tr.leaderboardPlayer}</th><th>{tr.leaderboardCoins}</th><th>{tr.leaderboardDate}</th></tr></thead><tbody>{profile.leaderboard.map((entry, idx) => <tr key={`${entry.userName}-${entry.completedAt}-${idx}`}><td>{entry.userName}</td><td>{entry.coins}</td><td>{new Date(entry.completedAt).toLocaleString()}</td></tr>)}</tbody></table></section>}
     {profile.session.lastScreen === 'problem-stats' && <section><table><thead><tr><th>{tr.statsProblem}</th><th>{tr.statsCorrect}</th><th>{tr.statsWrong}</th><th>{tr.statsAvgMs}</th><th>{tr.statsDifficulty}</th></tr></thead>
     <tbody>{rows.map((r) => <tr key={r.key}><td>{r.expression}</td><td>{r.correct}</td><td>{r.wrong}</td><td>{r.averageResponseTimeMs}</td><td>{r.difficultyScore}</td></tr>)}</tbody></table></section>}
+
+    {profile.session.lastScreen === 'operations-overview' && <section>
+      <h3>{tr.operationsOverview}</h3>
+      {[{ key: '+', title: tr.additionUpToTwenty }, { key: '-', title: tr.subtractionUpToTwenty }].map((operation) => <div key={operation.key} className="overview-block">
+        <h4>{operation.title}</h4>
+        <table className="overview-table">
+          <thead>
+            <tr>
+              <th> </th>
+              {Array.from({ length: 21 }, (_, right) => <th key={`head-${operation.key}-${right}`}>{right}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: 21 }, (_, left) => <tr key={`row-${operation.key}-${left}`}>
+              <th>{left}</th>
+              {Array.from({ length: 21 }, (_, right) => {
+                const result = operation.key === '+' ? left + right : left - right;
+                if (result < 0 || result > 20) {
+                  return <td key={`empty-${operation.key}-${left}-${right}`} className="overview-cell overview-empty">—</td>;
+                }
+                const key = `${operation.key}:${result}`;
+                const stats = resultStats.totals[key] ?? { attempts: 0, correct: 0, wrong: 0 };
+                const bg = toGrayShade(stats.attempts / resultStats.maxAttempts);
+                const color = stats.wrong > 0 ? toErrorRedShade(stats.wrong / resultStats.maxWrong) : '#111';
+                const title = `${left} ${operation.key} ${right} = ${result} • ${tr.statsTooltipAttempts}: ${stats.attempts} • ${tr.statsTooltipCorrect}: ${stats.correct} • ${tr.statsTooltipWrong}: ${stats.wrong}`;
+                return <td key={`result-${operation.key}-${left}-${right}`} className="overview-cell" style={{ background: bg, color }} title={title}>{result}</td>;
+              })}
+            </tr>)}
+          </tbody>
+        </table>
+      </div>)}
+    </section>}
   </div>;
 }
