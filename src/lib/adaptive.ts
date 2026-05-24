@@ -13,11 +13,18 @@ export function pickWeightedProblem(pool: Problem[], stats: Record<string, Probl
   return arr[arr.length - 1];
 }
 
+const FAST_MS = 3000;
+const MEDIUM_MS = 6000;
+const SLOW_MS = 10000;
+
 export function coinReward(ms: number, correct: boolean): number {
   if (!correct) return 0;
-  if (ms < 3000) return 5;
-  if (ms < 6000) return 3;
-  if (ms < 10000) return 2;
+
+  const normalizedMs = Number.isFinite(ms) ? Math.max(0, ms) : Number.POSITIVE_INFINITY;
+
+  if (normalizedMs < FAST_MS) return 5;
+  if (normalizedMs < MEDIUM_MS) return 3;
+  if (normalizedMs < SLOW_MS) return 2;
   return 1;
 }
 
