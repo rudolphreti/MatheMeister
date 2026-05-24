@@ -46,12 +46,13 @@ function toErrorRedShade(ratio: number): string {
 
 
 function parseBinaryOperation(expression: string): { left: number; right: number; operator: '+' | '-'; result: number } | null {
-  const match = expression.match(/^\s*(\d+)\s*([+-])\s*(\d+)\s*=\s*(-?\d+)\s*$/);
+  const match = expression.match(/^\s*(\d+)\s*([+-])\s*(\d+)(?:\s*=\s*(-?\d+))?\s*$/);
   if (!match) return null;
   const left = Number(match[1]);
   const operator = match[2] as '+' | '-';
   const right = Number(match[3]);
-  const result = Number(match[4]);
+  const computed = operator === '+' ? left + right : left - right;
+  const result = match[4] !== undefined ? Number(match[4]) : computed;
   if (!Number.isFinite(left) || !Number.isFinite(right) || !Number.isFinite(result)) return null;
   return { left, right, operator, result };
 }
@@ -166,7 +167,6 @@ export function App() {
     Object.values(sourceStats).forEach((stat) => {
       const parsed = parseBinaryOperation(stat.expression);
       if (!parsed) return;
-      if (parsed.result < 0 || parsed.result > 20) return;
       const bucketKey = `${parsed.operator}:${parsed.left}:${parsed.right}`;
       totals[bucketKey] = {
         attempts: stat.attempts,
@@ -330,7 +330,7 @@ export function App() {
               <th>{left}</th>
               {Array.from({ length: 21 }, (_, right) => {
                 const result = operation.key === '+' ? left + right : left - right;
-                if (result < 0 || result > 20) {
+                if (operation.key === '-' && result < 0) {
                   return <td key={`empty-${operation.key}-${left}-${right}`} className="overview-cell overview-empty">—</td>;
                 }
                 const operationKey = `${operation.key}:${left}:${right}`;
