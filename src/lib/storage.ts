@@ -1,13 +1,28 @@
 import { ProfileV1 } from './types';
 
 export const STORAGE_KEY = 'math-practice-app:v1';
+export const LAST_USER_NAME_KEY = 'math-practice-app:last-user-name';
+
+function getStorage(): Storage | null {
+  if (typeof localStorage === 'undefined') return null;
+  return localStorage;
+}
 
 export function saveProfile(profile: ProfileV1) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+  getStorage()?.setItem(STORAGE_KEY, JSON.stringify(profile));
+}
+
+export function saveLastUserName(name: string) {
+  getStorage()?.setItem(LAST_USER_NAME_KEY, name.trim());
+}
+
+export function loadLastUserName(): string {
+  return (getStorage()?.getItem(LAST_USER_NAME_KEY) ?? '').trim();
 }
 
 export function loadProfile(): ProfileV1 | null {
-  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!getStorage()) return null;
+  const raw = getStorage()?.getItem(STORAGE_KEY);
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);

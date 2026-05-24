@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildProblemPool, generateProblem } from './lib/math';
 import { coinReward, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
-import { exportProfile, importProfile, loadProfile, saveProfile } from './lib/storage';
+import { exportProfile, importProfile, loadLastUserName, loadProfile, saveLastUserName, saveProfile } from './lib/storage';
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
@@ -32,14 +32,16 @@ export function App() {
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const [importMessage, setImportMessage] = useState<string>('');
   const [now, setNow] = useState(() => Date.now());
-  const [nameInput, setNameInput] = useState('');
+  const [nameInput, setNameInput] = useState(() => loadLastUserName());
   const [nameConfirmed, setNameConfirmed] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
 
   useEffect(() => saveProfile(profile), [profile]);
-  useEffect(() => setNameInput(profile.userName), [profile.userName]);
+  useEffect(() => {
+    setNameInput(profile.userName || loadLastUserName());
+  }, [profile.userName]);
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(id);
@@ -109,7 +111,7 @@ export function App() {
     const stat = updateProblemStat(profile.problemStats[profile.session.activeProblem.key], profile.session.activeProblem, correct, ms, Date.now());
     const next = pickWeightedProblem(pool, { ...profile.problemStats, [stat.key]: stat }, profile.session.activeProblem.key);
     setFeedback(correct ? 'correct' : 'wrong');
-    setProfile((p) => ({ ...p, problemStats: { ...p.problemStats, [stat.key]: stat }, session: { ...p.session, activeProblem: next, typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) } } }));
+    setProfile((p) => ({ ...p, problemStats: { ...p.problemStats, [stat.key]: stat }, session: { ...p.session, activeProblem: next, typedAnswer: '', sessionStartAt: Date.now(), coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) } } }));
   }
 
   const rows = sortStats(profile.problemStats);
@@ -148,6 +150,7 @@ export function App() {
         sessionDurationMs: durationMs
       }
     }));
+    saveLastUserName(nextName);
     setNameConfirmed(true);
   };
 

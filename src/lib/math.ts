@@ -15,9 +15,12 @@ function shouldExcludeProblem(settings: Settings, nums: number[], opsArr: Operat
   if (settings.excludeResultZero && answer === 0) return true;
   if (settings.excludePlusMinusZero || settings.excludePlusMinusOne) {
     for (let i = 0; i < opsArr.length; i++) {
+      const prev = nums[i];
       const next = nums[i + 1];
       if (settings.excludePlusMinusZero && next === 0) return true;
       if (settings.excludePlusMinusOne && next === 1) return true;
+      if (settings.excludePlusMinusZero && opsArr[i] === '+' && prev === 0) return true;
+      if (settings.excludePlusMinusOne && opsArr[i] === '-' && prev === 1) return true;
     }
   }
   return false;
