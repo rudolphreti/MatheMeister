@@ -32,19 +32,6 @@ function sortStats(stats: Record<string, ProblemStat>): ProblemStat[] {
 }
 
 
-function extractResult(expression: string): number | null {
-  const parts = expression.split('=');
-  if (parts.length < 2) return null;
-  const value = Number(parts[parts.length - 1].trim());
-  return Number.isFinite(value) ? value : null;
-}
-
-function extractOperator(expression: string): '+' | '-' | null {
-  if (expression.includes('+')) return '+';
-  if (expression.includes('-')) return '-';
-  return null;
-}
-
 function toGrayShade(ratio: number): string {
   const clamped = Math.max(0, Math.min(1, ratio));
   const value = Math.round(250 - (120 * clamped));
@@ -160,20 +147,15 @@ export function App() {
 
   const rows = sortStats(mergeProblemStats(profile.problemStats, pendingProblemStats));
 
-  const resultStats = useMemo(() => {
+  const operationStats = useMemo(() => {
     const sourceStats = mergeProblemStats(profile.problemStats, pendingProblemStats);
     const totals: Record<string, { attempts: number; correct: number; wrong: number }> = {};
+
     Object.values(sourceStats).forEach((stat) => {
-      const result = extractResult(stat.expression);
-      const operator = extractOperator(stat.expression);
-      if (result === null || !operator) return;
-      if (result < 0 || result > 20) return;
-      const bucketKey = `${operator}:${result}`;
-      const current = totals[bucketKey] ?? { attempts: 0, correct: 0, wrong: 0 };
-      totals[bucketKey] = {
-        attempts: current.attempts + stat.attempts,
-        correct: current.correct + stat.correct,
-        wrong: current.wrong + stat.wrong,
+      totals[stat.key] = {
+        attempts: stat.attempts,
+        correct: stat.correct,
+        wrong: stat.wrong,
       };
     });
 
@@ -182,7 +164,6 @@ export function App() {
 
     return { totals, maxAttempts, maxWrong };
   }, [profile.problemStats, pendingProblemStats]);
-
 
   function getSessionEndMessage(): string {
     if (!ended) return '';
@@ -336,12 +317,13 @@ export function App() {
                 if (result < 0 || result > 20) {
                   return <td key={`empty-${operation.key}-${left}-${right}`} className="overview-cell overview-empty">—</td>;
                 }
-                const key = `${operation.key}:${result}`;
-                const stats = resultStats.totals[key] ?? { attempts: 0, correct: 0, wrong: 0 };
-                const bg = toGrayShade(stats.attempts / resultStats.maxAttempts);
-                const color = stats.wrong > 0 ? toErrorRedShade(stats.wrong / resultStats.maxWrong) : '#111';
+                const operationKey = `${left}${operation.key}${right}=${result}`;
+                const stats = operationStats.totals[operationKey] ?? { attempts: 0, correct: 0, wrong: 0 };
+                const hasAttempts = stats.attempts > 0;
+                const bg = hasAttempts ? toGrayShade(stats.attempts / operationStats.maxAttempts) : '#fff';
+                const color = stats.wrong > 0 ? toErrorRedShade(stats.wrong / operationStats.maxWrong) : '#111';
                 const title = `${left} ${operation.key} ${right} = ${result} • ${tr.statsTooltipAttempts}: ${stats.attempts} • ${tr.statsTooltipCorrect}: ${stats.correct} • ${tr.statsTooltipWrong}: ${stats.wrong}`;
-                return <td key={`result-${operation.key}-${left}-${right}`} className="overview-cell" style={{ background: bg, color }} title={title}>{result}</td>;
+                return <td key={`result-${operation.key}-${left}-${right}`} className={`overview-cell ${hasAttempts ? 'overview-hit' : ''}`} style={{ background: bg, color }} title={title}>{result}</td>;
               })}
             </tr>)}
           </tbody>
