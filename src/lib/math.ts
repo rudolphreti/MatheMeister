@@ -44,7 +44,7 @@ function parseCustomProblemLine(line: string): Problem | null {
   const right = Number(match[3]);
   const answer = op === '+' ? left + right : left - right;
   const expression = `${left} ${op} ${right}`;
-  return { key: expression.replaceAll(' ', ''), expression, answer };
+  return { key: expression.replace(/\s/g, ''), expression, answer };
 }
 
 export function parseCustomProblems(settings: Settings): Problem[] {
@@ -92,7 +92,7 @@ export function buildProblemPool(settings: Settings): Problem[] {
           const answer = evalOps(nums, opsArr);
           if (shouldExcludeProblem(settings, nums, opsArr, answer)) return;
           const expr = nums.map((n, i2) => (i2 === 0 ? `${n}` : `${opsArr[i2 - 1]} ${n}`)).join(' ');
-          problems.push({ key: expr.replaceAll(' ', ''), expression: expr, answer });
+          problems.push({ key: expr.replace(/\s/g, ''), expression: expr, answer });
           return;
         }
         for (const op of ops) {
@@ -125,7 +125,7 @@ export function buildProblemPool(settings: Settings): Problem[] {
         const answer = evalOps(nums, opsArr);
         if (shouldExcludeProblem(settings, nums, opsArr, answer)) continue;
         const expr = nums.map((n, i2) => (i2 === 0 ? `${n}` : `${opsArr[i2 - 1]} ${n}`)).join(' ');
-        problems.push({ key: expr.replaceAll(' ', ''), expression: expr, answer });
+        problems.push({ key: expr.replace(/\s/g, ''), expression: expr, answer });
       }
     }
   }
