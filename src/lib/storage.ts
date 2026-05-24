@@ -5,6 +5,8 @@ export const LAST_USER_NAME_KEY = 'math-practice-app:last-user-name';
 
 function getStorage(): Storage | null {
   if (typeof localStorage === 'undefined') return null;
+  if (typeof localStorage.getItem !== 'function') return null;
+  if (typeof localStorage.setItem !== 'function') return null;
   return localStorage;
 }
 
