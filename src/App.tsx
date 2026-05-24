@@ -5,6 +5,7 @@ import { exportProfile, importProfile, loadLastUserName, loadProfile, saveLastUs
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
+import { ensureActiveProblemIsAllowed } from './lib/session';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice' }, problemStats: {} });
@@ -83,6 +84,22 @@ export function App() {
       setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: generateProblem(p.settings), problemStartedAt: Date.now() } }));
     }
   }, [profile.session.activeProblem, profile.settings]);
+
+
+  useEffect(() => {
+    if (!profile.session.activeProblem) return;
+    const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
+    const allowedProblems = Array.from(combinedPoolMap.values());
+    if (ensureActiveProblemIsAllowed(profile.session.activeProblem, allowedProblems)) return;
+    const nextProblem = pickWeightedProblem(
+      allowedProblems,
+      mergeProblemStats(profile.problemStats, pendingProblemStats),
+      profile.session.activeProblem.key,
+      new Set(customProblems.map((problem) => problem.key))
+    );
+    setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: nextProblem, typedAnswer: '', problemStartedAt: Date.now() } }));
+    setFeedback(null);
+  }, [customProblems, pendingProblemStats, pool, profile.problemStats, profile.session.activeProblem]);
 
   const timed = profile.settings.mode === 'timed';
   const remaining = profile.settings.mode === 'timed' && profile.session.sessionEndsAt
