@@ -34,6 +34,36 @@ export function generateProblem(settings: Settings): Problem {
   return pool[rand(pool.length)];
 }
 
+function parseCustomProblemLine(line: string): Problem | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(/^(\d+)\s*([+-])\s*(\d+)$/);
+  if (!match) return null;
+  const left = Number(match[1]);
+  const op = match[2] as Operator;
+  const right = Number(match[3]);
+  const answer = op === '+' ? left + right : left - right;
+  const expression = `${left} ${op} ${right}`;
+  return { key: expression.replace(/\s/g, ''), expression, answer };
+}
+
+export function parseCustomProblems(settings: Settings): Problem[] {
+  const lines = settings.customTasksText.split('\n');
+  const parsed: Problem[] = [];
+  for (const line of lines) {
+    const problem = parseCustomProblemLine(line);
+    if (!problem) continue;
+    if (problem.expression.includes('+') && !settings.additionEnabled) continue;
+    if (problem.expression.includes('-') && !settings.subtractionEnabled) continue;
+    const nums = problem.expression.split(' ').filter((part) => /^\d+$/.test(part)).map(Number);
+    if (nums.some((n) => n < settings.min || n > settings.max)) continue;
+    if (problem.answer < settings.min || problem.answer > settings.max) continue;
+    if (shouldExcludeProblem(settings, nums, [problem.expression.includes('+') ? '+' : '-'], problem.answer)) continue;
+    parsed.push(problem);
+  }
+  return Array.from(new Map(parsed.map((p) => [p.key, p])).values());
+}
+
 export function buildProblemPool(settings: Settings): Problem[] {
   const ops: Operator[] = [];
   if (settings.additionEnabled) ops.push('+');
@@ -62,7 +92,7 @@ export function buildProblemPool(settings: Settings): Problem[] {
           const answer = evalOps(nums, opsArr);
           if (shouldExcludeProblem(settings, nums, opsArr, answer)) return;
           const expr = nums.map((n, i2) => (i2 === 0 ? `${n}` : `${opsArr[i2 - 1]} ${n}`)).join(' ');
-          problems.push({ key: expr.replaceAll(' ', ''), expression: expr, answer });
+          problems.push({ key: expr.replace(/\s/g, ''), expression: expr, answer });
           return;
         }
         for (const op of ops) {
@@ -95,7 +125,7 @@ export function buildProblemPool(settings: Settings): Problem[] {
         const answer = evalOps(nums, opsArr);
         if (shouldExcludeProblem(settings, nums, opsArr, answer)) continue;
         const expr = nums.map((n, i2) => (i2 === 0 ? `${n}` : `${opsArr[i2 - 1]} ${n}`)).join(' ');
-        problems.push({ key: expr.replaceAll(' ', ''), expression: expr, answer });
+        problems.push({ key: expr.replace(/\s/g, ''), expression: expr, answer });
       }
     }
   }

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { buildProblemPool, generateProblem } from './lib/math';
+import { buildProblemPool, generateProblem, parseCustomProblems } from './lib/math';
 import { coinReward, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
 import { exportProfile, importProfile, loadLastUserName, loadProfile, saveLastUserName, saveProfile } from './lib/storage';
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 
-const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false };
+const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice' }, problemStats: {} });
 
 function calculateRemainingMs(profile: ProfileV1): number {
@@ -37,6 +37,7 @@ export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
+  const customProblems = useMemo(() => parseCustomProblems(profile.settings), [profile.settings]);
 
   useEffect(() => saveProfile(profile), [profile]);
   useEffect(() => {
@@ -109,7 +110,8 @@ export function App() {
     const coins = coinReward(ms, correct);
     if (coins > 0) playCoinSound(profile.settings.soundEnabled);
     const stat = updateProblemStat(profile.problemStats[profile.session.activeProblem.key], profile.session.activeProblem, correct, ms, Date.now());
-    const next = pickWeightedProblem(pool, { ...profile.problemStats, [stat.key]: stat }, profile.session.activeProblem.key);
+    const nextPool = customProblems.length > 0 ? customProblems : pool;
+    const next = pickWeightedProblem(nextPool, { ...profile.problemStats, [stat.key]: stat }, profile.session.activeProblem.key);
     setFeedback(correct ? 'correct' : 'wrong');
     setProfile((p) => ({ ...p, problemStats: { ...p.problemStats, [stat.key]: stat }, session: { ...p.session, activeProblem: next, typedAnswer: '', sessionStartAt: Date.now(), coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) } } }));
   }
@@ -217,6 +219,17 @@ export function App() {
         <label><input type="checkbox" checked={profile.settings.excludeResultZero} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, excludeResultZero: e.target.checked } }))} /> {tr.excludeResultZero}</label>
         <label><input type="checkbox" checked={profile.settings.excludePlusMinusZero} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, excludePlusMinusZero: e.target.checked } }))} /> {tr.excludePlusMinusZero}</label>
         <label><input type="checkbox" checked={profile.settings.excludePlusMinusOne} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, excludePlusMinusOne: e.target.checked } }))} /> {tr.excludePlusMinusOne}</label>
+      </fieldset>
+      <fieldset>
+        <legend>{tr.customTasksTitle}</legend>
+        <label>{tr.customTasksHint}
+          <textarea
+            value={profile.settings.customTasksText}
+            onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, customTasksText: e.target.value } }))}
+            rows={8}
+            placeholder={tr.customTasksPlaceholder}
+          />
+        </label>
       </fieldset>
       <button onClick={() => { const blob = new Blob([exportProfile(profile)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'math-profile.json'; a.click(); }}>{tr.exportJson}</button>
       <input type="file" accept="application/json" onChange={async (e) => {
