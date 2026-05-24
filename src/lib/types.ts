@@ -16,6 +16,7 @@ export interface Settings {
   excludeResultZero: boolean;
   excludePlusMinusZero: boolean;
   excludePlusMinusOne: boolean;
+  customTasksText: string;
 }
 
 export interface Problem {

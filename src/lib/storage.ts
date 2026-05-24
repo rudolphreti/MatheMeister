@@ -42,6 +42,7 @@ function normalizeProfile(profile: ProfileV1): ProfileV1 {
       excludeResultZero: profile.settings.excludeResultZero ?? false,
       excludePlusMinusZero: profile.settings.excludePlusMinusZero ?? false,
       excludePlusMinusOne: profile.settings.excludePlusMinusOne ?? false,
+      customTasksText: profile.settings.customTasksText ?? '',
     },
     session: {
       ...profile.session,
@@ -78,7 +79,8 @@ function isSettings(x: unknown): x is ProfileV1['settings'] {
     && (y.examplesPerSession === undefined || (Number.isInteger(y.examplesPerSession) && y.examplesPerSession >= 1 && y.examplesPerSession <= 200))
     && (y.excludeResultZero === undefined || typeof y.excludeResultZero === 'boolean')
     && (y.excludePlusMinusZero === undefined || typeof y.excludePlusMinusZero === 'boolean')
-    && (y.excludePlusMinusOne === undefined || typeof y.excludePlusMinusOne === 'boolean');
+    && (y.excludePlusMinusOne === undefined || typeof y.excludePlusMinusOne === 'boolean')
+    && (y.customTasksText === undefined || typeof y.customTasksText === 'string');
 }
 
 function isProblem(x: unknown): x is NonNullable<ProfileV1['session']['activeProblem']> {
