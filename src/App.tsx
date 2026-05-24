@@ -111,8 +111,7 @@ export function App() {
     const nextProblem = pickWeightedProblem(
       allowedProblems,
       mergeProblemStats(profile.problemStats, pendingProblemStats),
-      profile.session.activeProblem.key,
-      new Set(customProblems.map((problem) => problem.key))
+      profile.session.activeProblem.key
     );
     setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: nextProblem, typedAnswer: '', problemStartedAt: Date.now() } }));
     setFeedback(null);
@@ -187,8 +186,7 @@ export function App() {
     const next = queuedNext ?? pickWeightedProblem(
       nextPool,
       { ...sessionStats, [stat.key]: stat },
-      profile.session.activeProblem.key,
-      new Set(customProblems.map((problem) => problem.key))
+      profile.session.activeProblem.key
     );
     setFeedback(correct ? 'correct' : 'wrong');
     setPendingProblemStats((current) => ({ ...current, [stat.key]: stat }));
