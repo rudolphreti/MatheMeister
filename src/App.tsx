@@ -1,13 +1,28 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildProblemPool, generateProblem, parseCustomProblems } from './lib/math';
-import { coinReward, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
+import { coinReward, updateProblemStat } from './lib/adaptive';
 import { exportProfile, importProfile, loadLastUserName, loadProfile, saveLastUserName, saveProfile } from './lib/storage';
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
-const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice' }, problemStats: {} });
+const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice', problemQueue: [] }, problemStats: {} });
+
+function buildSessionQueue(settings: Settings): ProfileV1['session']['problemQueue'] {
+  const generatedPool = buildProblemPool(settings);
+  const customPool = parseCustomProblems(settings);
+  const uniquePool = Array.from(new Map([...customPool, ...generatedPool].map((problem) => [problem.key, problem])).values());
+  if (uniquePool.length === 0) return [generateProblem(settings)];
+  const queue: ProfileV1['session']['problemQueue'] = [];
+  while (queue.length < settings.examplesPerSession) {
+    for (const problem of uniquePool) {
+      queue.push(problem);
+      if (queue.length >= settings.examplesPerSession) break;
+    }
+  }
+  return queue;
+}
 
 function calculateRemainingMs(profile: ProfileV1): number {
   if (profile.settings.mode !== 'timed') return profile.session.sessionDurationMs;
@@ -66,9 +81,8 @@ export function App() {
   const [nameConfirmed, setNameConfirmed] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pendingProblemStats, setPendingProblemStats] = useState<Record<string, ProblemStat>>({});
+  const settingsSignatureRef = useRef<string>(JSON.stringify(profile.settings));
   const tr = t(profile.settings.language);
-  const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
-  const customProblems = useMemo(() => parseCustomProblems(profile.settings), [profile.settings]);
 
   useEffect(() => saveProfile(profile), [profile]);
   useEffect(() => {
@@ -79,10 +93,28 @@ export function App() {
     return () => window.clearInterval(id);
   }, []);
   useEffect(() => {
-    if (!profile.session.activeProblem) {
-      setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: generateProblem(p.settings), problemStartedAt: Date.now() } }));
-    }
-  }, [profile.session.activeProblem, profile.settings]);
+    if (profile.session.activeProblem) return;
+    const nextQueue = profile.session.problemQueue.length > 0 ? profile.session.problemQueue : buildSessionQueue(profile.settings);
+    setProfile((p) => ({ ...p, session: { ...p.session, problemQueue: nextQueue, activeProblem: nextQueue[0] ?? generateProblem(p.settings), problemStartedAt: Date.now() } }));
+  }, [profile.session.activeProblem, profile.session.problemQueue, profile.settings]);
+  useEffect(() => {
+    if (!nameConfirmed) return;
+    const nextSignature = JSON.stringify(profile.settings);
+    if (nextSignature === settingsSignatureRef.current) return;
+    settingsSignatureRef.current = nextSignature;
+    const nextQueue = buildSessionQueue(profile.settings);
+    setFeedback(null);
+    setProfile((p) => ({
+      ...p,
+      session: {
+        ...p.session,
+        problemQueue: nextQueue,
+        activeProblem: nextQueue[0] ?? null,
+        typedAnswer: '',
+        problemStartedAt: Date.now(),
+      },
+    }));
+  }, [nameConfirmed, profile.settings]);
 
   const timed = profile.settings.mode === 'timed';
   const remaining = profile.settings.mode === 'timed' && profile.session.sessionEndsAt
@@ -103,7 +135,7 @@ export function App() {
 
   function restartSession() {
     const durationMs = profile.settings.sessionMinutes * 60000;
-    const nextProblem = generateProblem(profile.settings);
+    const nextQueue = buildSessionQueue(profile.settings);
     const shouldSaveScore = profile.userName.trim().length > 0 && (profile.session.currentStats.correct + profile.session.currentStats.wrong > 0);
     setFeedback(null);
     setProfile((p) => ({
@@ -112,7 +144,8 @@ export function App() {
       leaderboard: shouldSaveScore ? sortLeaderboard([...p.leaderboard, { userName: p.userName.trim(), coins: p.session.coins, completedAt: Date.now() }]) : p.leaderboard,
       session: {
         ...p.session,
-        activeProblem: nextProblem,
+        activeProblem: nextQueue[0] ?? null,
+        problemQueue: nextQueue,
         problemStartedAt: Date.now(),
         typedAnswer: '',
         sessionStartAt: null,
@@ -145,17 +178,19 @@ export function App() {
     if (coins > 0) playCoinSound(profile.settings.soundEnabled);
     const sessionStats = mergeProblemStats(profile.problemStats, pendingProblemStats);
     const stat = updateProblemStat(sessionStats[profile.session.activeProblem.key], profile.session.activeProblem, correct, ms, Date.now());
-    const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
-    const nextPool = Array.from(combinedPoolMap.values());
-    const next = pickWeightedProblem(
-      nextPool,
-      { ...sessionStats, [stat.key]: stat },
-      profile.session.activeProblem.key,
-      new Set(customProblems.map((problem) => problem.key))
-    );
+    const updatedQueue = profile.session.problemQueue.slice(1);
+    const next = updatedQueue[0] ?? null;
     setFeedback(correct ? 'correct' : 'wrong');
     setPendingProblemStats((current) => ({ ...current, [stat.key]: stat }));
-    setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: next, problemStartedAt: Date.now(), typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) } } }));
+    setProfile((p) => ({ ...p, session: { ...p.session, problemQueue: updatedQueue, activeProblem: next, problemStartedAt: next ? Date.now() : null, typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) } } }));
+  }
+
+  function skipProblem() {
+    if (!profile.session.activeProblem || ended || profile.session.problemQueue.length <= 1) return;
+    const [current, ...rest] = profile.session.problemQueue;
+    const rotatedQueue = [...rest, current];
+    setFeedback(null);
+    setProfile((p) => ({ ...p, session: { ...p.session, problemQueue: rotatedQueue, activeProblem: rotatedQueue[0] ?? null, problemStartedAt: Date.now(), typedAnswer: '' } }));
   }
 
   const rows = sortStats(mergeProblemStats(profile.problemStats, pendingProblemStats));
@@ -168,10 +203,11 @@ export function App() {
       const parsed = parseBinaryOperation(stat.expression);
       if (!parsed) return;
       const bucketKey = `${parsed.operator}:${parsed.left}:${parsed.right}`;
+      const current = totals[bucketKey] ?? { attempts: 0, correct: 0, wrong: 0 };
       totals[bucketKey] = {
-        attempts: stat.attempts,
-        correct: stat.correct,
-        wrong: stat.wrong,
+        attempts: current.attempts + stat.attempts,
+        correct: current.correct + stat.correct,
+        wrong: current.wrong + stat.wrong,
       };
     });
 
@@ -265,6 +301,7 @@ export function App() {
         </div>
         <button disabled={ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>{tr.del}</button>
         <button className="enter" disabled={ended} onClick={submit}>{tr.ok} / Enter</button>
+        <button disabled={ended || profile.session.problemQueue.length <= 1} onClick={skipProblem}>{tr.nextProblem}</button>
       </div>
     </section>}
     {profile.session.lastScreen === 'settings' && <section>

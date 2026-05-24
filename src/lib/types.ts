@@ -46,6 +46,7 @@ export interface SessionState {
   coins: number;
   currentStats: { correct: number; wrong: number };
   lastScreen: 'practice' | 'settings' | 'stats' | 'problem-stats' | 'operations-overview';
+  problemQueue: Problem[];
 }
 
 export interface ProfileV1 {
