@@ -7,7 +7,7 @@ import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
-const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice' }, problemStats: {} });
+const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice' }, problemStats: {} });
 
 function calculateRemainingMs(profile: ProfileV1): number {
   if (profile.settings.mode !== 'timed') return profile.session.sessionDurationMs;
@@ -49,7 +49,7 @@ export function App() {
   }, []);
   useEffect(() => {
     if (!profile.session.activeProblem) {
-      setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: generateProblem(p.settings) } }));
+      setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: generateProblem(p.settings), problemStartedAt: Date.now() } }));
     }
   }, [profile.session.activeProblem, profile.settings]);
 
@@ -81,6 +81,7 @@ export function App() {
       session: {
         ...p.session,
         activeProblem: nextProblem,
+        problemStartedAt: Date.now(),
         typedAnswer: '',
         sessionStartAt: null,
         sessionEndsAt: null,
@@ -105,7 +106,7 @@ export function App() {
     if (!profile.session.activeProblem || ended) return;
     const answer = Number(profile.session.typedAnswer);
     const correct = answer === profile.session.activeProblem.answer;
-    const start = profile.session.sessionStartAt ?? Date.now();
+    const start = profile.session.problemStartedAt ?? Date.now();
     const ms = Math.max(0, Date.now() - start);
     const coins = coinReward(ms, correct);
     if (coins > 0) playCoinSound(profile.settings.soundEnabled);
@@ -113,7 +114,7 @@ export function App() {
     const nextPool = customProblems.length > 0 ? customProblems : pool;
     const next = pickWeightedProblem(nextPool, { ...profile.problemStats, [stat.key]: stat }, profile.session.activeProblem.key);
     setFeedback(correct ? 'correct' : 'wrong');
-    setProfile((p) => ({ ...p, problemStats: { ...p.problemStats, [stat.key]: stat }, session: { ...p.session, activeProblem: next, typedAnswer: '', sessionStartAt: Date.now(), coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) } } }));
+    setProfile((p) => ({ ...p, problemStats: { ...p.problemStats, [stat.key]: stat }, session: { ...p.session, activeProblem: next, problemStartedAt: Date.now(), typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) } } }));
   }
 
   const rows = sortStats(profile.problemStats);

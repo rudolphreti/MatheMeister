@@ -39,6 +39,7 @@ export interface ProblemStat {
 export interface SessionState {
   activeProblem: Problem | null;
   typedAnswer: string;
+  problemStartedAt: number | null;
   sessionStartAt: number | null;
   sessionEndsAt: number | null;
   sessionDurationMs: number;

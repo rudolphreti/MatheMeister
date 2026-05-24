@@ -46,6 +46,7 @@ function normalizeProfile(profile: ProfileV1): ProfileV1 {
     },
     session: {
       ...profile.session,
+      problemStartedAt: profile.session.problemStartedAt ?? null,
       sessionEndsAt: profile.session.sessionEndsAt ?? (profile.session.sessionStartAt ? profile.session.sessionStartAt + profile.session.sessionDurationMs : null),
     },
   };
@@ -94,6 +95,7 @@ function isSession(x: unknown): x is ProfileV1['session'] {
   const y = x as ProfileV1['session'];
   return (y.activeProblem === null || isProblem(y.activeProblem))
     && typeof y.typedAnswer === 'string'
+    && (y.problemStartedAt === undefined || y.problemStartedAt === null || Number.isFinite(y.problemStartedAt))
     && (y.sessionStartAt === null || Number.isFinite(y.sessionStartAt))
     && (y.sessionEndsAt === null || Number.isFinite(y.sessionEndsAt))
     && Number.isFinite(y.sessionDurationMs)
