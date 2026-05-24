@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildProblemPool, generateProblem, parseCustomProblems } from './lib/math';
 import { coinReward, updateProblemStat } from './lib/adaptive';
 import { exportProfile, importProfile, loadLastUserName, loadProfile, saveLastUserName, saveProfile } from './lib/storage';
@@ -81,6 +81,7 @@ export function App() {
   const [nameConfirmed, setNameConfirmed] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pendingProblemStats, setPendingProblemStats] = useState<Record<string, ProblemStat>>({});
+  const settingsSignatureRef = useRef<string>(JSON.stringify(profile.settings));
   const tr = t(profile.settings.language);
 
   useEffect(() => saveProfile(profile), [profile]);
@@ -96,6 +97,24 @@ export function App() {
     const nextQueue = profile.session.problemQueue.length > 0 ? profile.session.problemQueue : buildSessionQueue(profile.settings);
     setProfile((p) => ({ ...p, session: { ...p.session, problemQueue: nextQueue, activeProblem: nextQueue[0] ?? generateProblem(p.settings), problemStartedAt: Date.now() } }));
   }, [profile.session.activeProblem, profile.session.problemQueue, profile.settings]);
+  useEffect(() => {
+    if (!nameConfirmed) return;
+    const nextSignature = JSON.stringify(profile.settings);
+    if (nextSignature === settingsSignatureRef.current) return;
+    settingsSignatureRef.current = nextSignature;
+    const nextQueue = buildSessionQueue(profile.settings);
+    setFeedback(null);
+    setProfile((p) => ({
+      ...p,
+      session: {
+        ...p.session,
+        problemQueue: nextQueue,
+        activeProblem: nextQueue[0] ?? null,
+        typedAnswer: '',
+        problemStartedAt: Date.now(),
+      },
+    }));
+  }, [nameConfirmed, profile.settings]);
 
   const timed = profile.settings.mode === 'timed';
   const remaining = profile.settings.mode === 'timed' && profile.session.sessionEndsAt
@@ -184,10 +203,11 @@ export function App() {
       const parsed = parseBinaryOperation(stat.expression);
       if (!parsed) return;
       const bucketKey = `${parsed.operator}:${parsed.left}:${parsed.right}`;
+      const current = totals[bucketKey] ?? { attempts: 0, correct: 0, wrong: 0 };
       totals[bucketKey] = {
-        attempts: stat.attempts,
-        correct: stat.correct,
-        wrong: stat.wrong,
+        attempts: current.attempts + stat.attempts,
+        correct: current.correct + stat.correct,
+        wrong: current.wrong + stat.wrong,
       };
     });
 
