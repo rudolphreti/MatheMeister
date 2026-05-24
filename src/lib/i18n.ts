@@ -17,6 +17,7 @@ export const t = (_lang: Language) => ({
   wrong: 'Falsch',
   ok: 'OK',
   del: 'Löschen',
+  nextProblem: 'Nächste',
   modeLabel: 'Modus',
   modeTimed: 'Mit Zeitlimit',
   modeNoPressure: 'Ohne Zeitdruck',
