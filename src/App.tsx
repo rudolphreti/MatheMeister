@@ -20,6 +20,11 @@ function sortLeaderboard(rows: ProfileV1['leaderboard']) {
   return rows.slice().sort((a, b) => b.coins - a.coins || b.completedAt - a.completedAt);
 }
 
+function mergeProblemStats(base: Record<string, ProblemStat>, pending: Record<string, ProblemStat>): Record<string, ProblemStat> {
+  return { ...base, ...pending };
+}
+
+
 function sortStats(stats: Record<string, ProblemStat>): ProblemStat[] {
   return Object.values(stats).sort((a, b) => b.difficultyScore - a.difficultyScore
     || b.wrong - a.wrong
@@ -35,6 +40,7 @@ export function App() {
   const [nameInput, setNameInput] = useState(() => loadLastUserName());
   const [nameConfirmed, setNameConfirmed] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pendingProblemStats, setPendingProblemStats] = useState<Record<string, ProblemStat>>({});
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
   const customProblems = useMemo(() => parseCustomProblems(profile.settings), [profile.settings]);
@@ -62,6 +68,13 @@ export function App() {
   const endedByExamples = doneExamples >= sessionExamples;
   const ended = (timed && remaining <= 0) || endedByExamples;
 
+  useEffect(() => {
+    if (!ended) return;
+    if (Object.keys(pendingProblemStats).length === 0) return;
+    setProfile((p) => ({ ...p, problemStats: mergeProblemStats(p.problemStats, pendingProblemStats) }));
+    setPendingProblemStats({});
+  }, [ended, pendingProblemStats]);
+
 
   function pushDigit(digit: string) {
     if (ended) return;
@@ -73,15 +86,16 @@ export function App() {
   function restartSession() {
     const durationMs = profile.settings.sessionMinutes * 60000;
     const nextProblem = generateProblem(profile.settings);
+    const nowTs = Date.now();
     const shouldSaveScore = profile.userName.trim().length > 0 && (profile.session.currentStats.correct + profile.session.currentStats.wrong > 0);
     setFeedback(null);
     setProfile((p) => ({
       ...p,
-      leaderboard: shouldSaveScore ? sortLeaderboard([...p.leaderboard, { userName: p.userName.trim(), coins: p.session.coins, completedAt: Date.now() }]) : p.leaderboard,
+      leaderboard: shouldSaveScore ? sortLeaderboard([...p.leaderboard, { userName: p.userName.trim(), coins: p.session.coins, completedAt: nowTs }]) : p.leaderboard,
       session: {
         ...p.session,
         activeProblem: nextProblem,
-        problemStartedAt: Date.now(),
+        problemStartedAt: nowTs,
         typedAnswer: '',
         sessionStartAt: null,
         sessionEndsAt: null,
@@ -89,6 +103,7 @@ export function App() {
         currentStats: { correct: 0, wrong: 0 }
       }
     }));
+    setPendingProblemStats({});
   }
 
   function resetSession() {
@@ -110,14 +125,23 @@ export function App() {
     const ms = Math.max(0, Date.now() - start);
     const coins = coinReward(ms, correct);
     if (coins > 0) playCoinSound(profile.settings.soundEnabled);
-    const stat = updateProblemStat(profile.problemStats[profile.session.activeProblem.key], profile.session.activeProblem, correct, ms, Date.now());
-    const nextPool = customProblems.length > 0 ? customProblems : pool;
-    const next = pickWeightedProblem(nextPool, { ...profile.problemStats, [stat.key]: stat }, profile.session.activeProblem.key);
+    const sessionStats = mergeProblemStats(profile.problemStats, pendingProblemStats);
+    const stat = updateProblemStat(sessionStats[profile.session.activeProblem.key], profile.session.activeProblem, correct, ms, Date.now());
+    const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
+    const nextPool = Array.from(combinedPoolMap.values());
+    const next = pickWeightedProblem(
+      nextPool,
+      { ...sessionStats, [stat.key]: stat },
+      profile.session.activeProblem.key,
+      new Set(customProblems.map((problem) => problem.key))
+    );
     setFeedback(correct ? 'correct' : 'wrong');
-    setProfile((p) => ({ ...p, problemStats: { ...p.problemStats, [stat.key]: stat }, session: { ...p.session, activeProblem: next, problemStartedAt: Date.now(), typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) } } }));
+    const nowTs2 = Date.now();
+    setPendingProblemStats((current) => ({ ...current, [stat.key]: stat }));
+    setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: next, problemStartedAt: nowTs2, typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) } } }));
   }
 
-  const rows = sortStats(profile.problemStats);
+  const rows = sortStats(mergeProblemStats(profile.problemStats, pendingProblemStats));
 
   function getSessionEndMessage(): string {
     if (!ended) return '';
