@@ -136,6 +136,10 @@ describe('buildSessionStateForUserStart', () => {
       currentStats: { correct: 4, wrong: 5 },
       blockedProblemKeys: ['1+1'],
       algorithmLog: ['legacy'],
+      sessionAttempts: [],
+      correctionQueue: [],
+      correctionSolvedKeys: [],
+      correctionModeActive: false,
       lastScreen: 'stats'
     },
     problemStats: {}
@@ -171,7 +175,7 @@ describe('buildSessionStateBeforeStart', () => {
         subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de',
         examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: ''
       },
-      session: { activeProblem: p1, typedAnswer: '7', problemStartedAt: 10, sessionStartAt: 10, sessionEndsAt: 20, sessionDurationMs: 5, coins: 3, currentStats: { correct: 1, wrong: 2 }, blockedProblemKeys: ['1+1'], algorithmLog: ['x'], lastScreen: 'stats' },
+      session: { activeProblem: p1, typedAnswer: '7', problemStartedAt: 10, sessionStartAt: 10, sessionEndsAt: 20, sessionDurationMs: 5, coins: 3, currentStats: { correct: 1, wrong: 2 }, blockedProblemKeys: ['1+1'], algorithmLog: ['x'], sessionAttempts: [], correctionQueue: [], correctionSolvedKeys: [], correctionModeActive: false, lastScreen: 'stats' },
       problemStats: {}
     };
 
@@ -195,7 +199,7 @@ describe('buildProfileForSessionReset', () => {
         subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de',
         examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: ''
       },
-      session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], lastScreen: 'practice' },
+      session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], sessionAttempts: [], correctionQueue: [], correctionSolvedKeys: [], correctionModeActive: false, lastScreen: 'practice' },
       problemStats: {}
     };
     const current: ProfileV1 = {
