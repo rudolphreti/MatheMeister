@@ -9,6 +9,7 @@ export interface Settings {
   max: 5 | 10 | 20;
   additionEnabled: boolean;
   subtractionEnabled: boolean;
+  subtractionMinuendMin: number;
   subtractionMinuendMax: number;
   terms: 2 | 3 | 4 | 5;
   soundEnabled: boolean;
