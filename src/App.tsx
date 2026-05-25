@@ -331,7 +331,7 @@ export function App() {
   };
 
   if (!nameConfirmed) {
-    return <div className="min-h-screen w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8 text-base sm:text-lg md:text-xl lg:text-2xl overflow-hidden">
+    return <div className="min-h-screen w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8 text-base sm:text-lg md:text-xl lg:text-2xl">
       <section className="mx-auto mt-8 flex w-full max-w-xl flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:mt-14 sm:p-6">
         <h2 className="text-2xl font-bold sm:text-3xl">{tr.enterNameTitle}</h2>
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -344,7 +344,7 @@ export function App() {
 
   const sessionStarted = profile.session.sessionStartAt !== null;
 
-  return <div className="min-h-screen w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8 text-base sm:text-lg md:text-xl lg:text-2xl overflow-hidden" onKeyDown={(e) => {
+  return <div className="min-h-screen w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8 text-base sm:text-lg md:text-xl lg:text-2xl" onKeyDown={(e) => {
     if (e.key === 'Enter') submit();
     if (/^[0-9]$/.test(e.key)) pushDigit(e.key);
     if (e.key === 'Backspace') {
@@ -399,7 +399,7 @@ export function App() {
         </div>
       </div>}
     </section>}
-    {profile.session.lastScreen === 'settings' && <section>
+    {profile.session.lastScreen === 'settings' && <section className="max-h-[calc(100vh-8rem)] overflow-auto pr-1">
       <label>{tr.modeLabel} <select value={profile.settings.mode} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, mode: e.target.value as Settings['mode'] } }))}><option value="timed">{tr.modeTimed}</option><option value="no-pressure">{tr.modeNoPressure}</option></select></label>
       <label>{tr.minutesLabel} <select value={profile.settings.sessionMinutes} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, sessionMinutes: Number(e.target.value) as Settings['sessionMinutes'] } }))}>{[1, 3, 5, 10, 15].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
       <label>{tr.maxLabel} <select value={profile.settings.max} onChange={(e) => setProfile((p) => {
@@ -478,15 +478,16 @@ export function App() {
       }} />
       <div>{importMessage}</div>
     </section>}
-    {profile.session.lastScreen === 'stats' && <section><div>{tr.correct}: {profile.session.currentStats.correct} · {tr.wrong}: {profile.session.currentStats.wrong}</div><table><thead><tr><th>{tr.leaderboardPlayer}</th><th>{tr.leaderboardCoins}</th><th>{tr.leaderboardDate}</th></tr></thead><tbody>{profile.leaderboard.map((entry, idx) => <tr key={`${entry.userName}-${entry.completedAt}-${idx}`}><td>{entry.userName}</td><td>{entry.coins}</td><td>{new Date(entry.completedAt).toLocaleString()}</td></tr>)}</tbody></table></section>}
-    {profile.session.lastScreen === 'problem-stats' && <section><table><thead><tr><th>{tr.statsProblem}</th><th>{tr.statsCorrect}</th><th>{tr.statsWrong}</th><th>{tr.statsAvgMs}</th><th>{tr.statsDifficulty}</th></tr></thead>
+    {profile.session.lastScreen === 'stats' && <section className="max-h-[calc(100vh-8rem)] overflow-auto pr-1"><div>{tr.correct}: {profile.session.currentStats.correct} · {tr.wrong}: {profile.session.currentStats.wrong}</div><table><thead><tr><th>{tr.leaderboardPlayer}</th><th>{tr.leaderboardCoins}</th><th>{tr.leaderboardDate}</th></tr></thead><tbody>{profile.leaderboard.map((entry, idx) => <tr key={`${entry.userName}-${entry.completedAt}-${idx}`}><td>{entry.userName}</td><td>{entry.coins}</td><td>{new Date(entry.completedAt).toLocaleString()}</td></tr>)}</tbody></table></section>}
+    {profile.session.lastScreen === 'problem-stats' && <section className="max-h-[calc(100vh-8rem)] overflow-auto pr-1"><table><thead><tr><th>{tr.statsProblem}</th><th>{tr.statsCorrect}</th><th>{tr.statsWrong}</th><th>{tr.statsAvgMs}</th><th>{tr.statsDifficulty}</th></tr></thead>
     <tbody>{rows.map((r) => <tr key={r.key}><td>{r.expression}</td><td>{r.correct}</td><td>{r.wrong}</td><td>{r.averageResponseTimeMs}</td><td>{r.difficultyScore}</td></tr>)}</tbody></table></section>}
 
-    {profile.session.lastScreen === 'operations-overview' && <section>
+    {profile.session.lastScreen === 'operations-overview' && <section className="max-h-[calc(100vh-8rem)] overflow-auto pr-1">
       <h3>{tr.operationsOverview}</h3>
       {[{ key: '+', title: tr.additionUpToTwenty }, { key: '-', title: tr.subtractionUpToTwenty }].map((operation) => <div key={operation.key} className="my-3">
         <h4>{operation.title}</h4>
-        <table className="w-full border-collapse text-xs sm:text-sm md:text-base">
+        <div className="overflow-auto">
+        <table className="w-full min-w-max border-collapse text-xs sm:text-sm md:text-base">
           <thead>
             <tr>
               <th> </th>
@@ -512,6 +513,7 @@ export function App() {
             </tr>)}
           </tbody>
         </table>
+        </div>
       </div>)}
     </section>}
   </div>;
