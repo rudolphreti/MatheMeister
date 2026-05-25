@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildProblemPool, generateProblem, parseCustomProblems } from './lib/math';
 import { coinReward, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
-import { exportProfile, importProfile, loadLastUserName, loadProfile, saveLastUserName, saveProfile } from './lib/storage';
+import { exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, saveLastUserName, saveProfile } from './lib/storage';
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
@@ -259,6 +259,23 @@ export function App() {
 
     const startAt = Date.now();
     const durationMs = profile.settings.sessionMinutes * 60000;
+    const existingProfile = loadProfileForUser(nextName);
+    if (existingProfile) {
+      setProfile((p) => ({
+        ...existingProfile,
+        userName: nextName,
+        session: {
+          ...existingProfile.session,
+          sessionStartAt: existingProfile.settings.mode === 'timed' ? startAt : null,
+          sessionEndsAt: existingProfile.settings.mode === 'timed' ? startAt + durationMs : null,
+          sessionDurationMs: durationMs,
+          algorithmLog: appendAlgorithmLog(existingProfile.session.algorithmLog, `session_started mode:${existingProfile.settings.mode} examples:${existingProfile.settings.examplesPerSession}`)
+        }
+      }));
+      saveLastUserName(nextName);
+      setNameConfirmed(true);
+      return;
+    }
 
     setProfile((p) => ({
       ...p,

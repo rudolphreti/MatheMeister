@@ -2,6 +2,7 @@ import { ProfileV1 } from './types';
 
 export const STORAGE_KEY = 'math-practice-app:v1';
 export const LAST_USER_NAME_KEY = 'math-practice-app:last-user-name';
+export const USER_PROFILES_KEY = 'math-practice-app:user-profiles:v1';
 
 function getStorage(): Storage | null {
   if (typeof localStorage === 'undefined') return null;
@@ -12,6 +13,7 @@ function getStorage(): Storage | null {
 
 export function saveProfile(profile: ProfileV1) {
   getStorage()?.setItem(STORAGE_KEY, JSON.stringify(profile));
+  saveProfileForUser(profile.userName, profile);
 }
 
 export function saveLastUserName(name: string) {
@@ -31,6 +33,38 @@ export function loadProfile(): ProfileV1 | null {
     if (isProfileV1(parsed)) return normalizeProfile(parsed);
   } catch {}
   return null;
+}
+
+export function saveProfileForUser(userName: string, profile: ProfileV1) {
+  const safeName = userName.trim();
+  if (!safeName) return;
+  const storage = getStorage();
+  if (!storage) return;
+  const profiles = loadAllUserProfiles();
+  profiles[safeName] = profile;
+  storage.setItem(USER_PROFILES_KEY, JSON.stringify(profiles));
+}
+
+export function loadProfileForUser(userName: string): ProfileV1 | null {
+  const safeName = userName.trim();
+  if (!safeName) return null;
+  const profile = loadAllUserProfiles()[safeName];
+  if (!profile || !isProfileV1(profile)) return null;
+  return normalizeProfile(profile);
+}
+
+function loadAllUserProfiles(): Record<string, ProfileV1> {
+  const storage = getStorage();
+  if (!storage) return {};
+  const raw = storage.getItem(USER_PROFILES_KEY);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, ProfileV1>;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch {
+    return {};
+  }
 }
 
 function normalizeProfile(profile: ProfileV1): ProfileV1 {

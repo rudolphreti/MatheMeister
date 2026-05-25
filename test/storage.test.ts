@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { importProfile, exportProfile, loadLastUserName, saveLastUserName } from '../src/lib/storage';
+import { importProfile, exportProfile, loadLastUserName, loadProfileForUser, saveLastUserName, saveProfileForUser } from '../src/lib/storage';
 
 const profile = { schemaVersion:1, userName:'Anna', leaderboard:[], settings:{ mode:'timed', sessionMinutes:10, min:0, max:20, additionEnabled:true, subtractionEnabled:true, subtractionMinuendMin:0, subtractionMinuendMax:20, terms:2, soundEnabled:true, language:'de', examplesPerSession:10, excludeResultZero:false, excludePlusMinusZero:false, excludePlusMinusOne:false, customTasksText:"" }, session:{ activeProblem:null, typedAnswer:'', problemStartedAt:null, sessionStartAt:null, sessionEndsAt:null, sessionDurationMs:0, coins:0, currentStats:{correct:0,wrong:0}, lastScreen:'practice' }, problemStats:{} };
 
@@ -16,5 +16,46 @@ describe('storage', () => {
   it('last user name helpers are safe without browser storage', () => {
     expect(() => saveLastUserName('  Anna  ')).not.toThrow();
     expect(loadLastUserName()).toBe('');
+  });
+  it('keeps independent per-user profile stats', () => {
+    const memory = new Map<string, string>();
+    const previousStorage = (globalThis as { localStorage?: Storage }).localStorage;
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        memory.set(key, value);
+      },
+      removeItem: (key: string) => {
+        memory.delete(key);
+      },
+      clear: () => memory.clear(),
+      key: (index: number) => Array.from(memory.keys())[index] ?? null,
+      get length() { return memory.size; }
+    } as Storage;
+
+    const anna = {
+      ...profile,
+      userName: 'Anna',
+      problemStats: {
+        '1+1': { key: '1+1', expression: '1 + 1', attempts: 3, correct: 2, wrong: 1, averageResponseTimeMs: 1200, difficultyScore: 1.1, errorDebt: 1, lastSeenAt: 1700000000000, lastSeenTurn: 2, excluded: false }
+      }
+    };
+    const max = {
+      ...profile,
+      userName: 'Max',
+      problemStats: {
+        '2+2': { key: '2+2', expression: '2 + 2', attempts: 5, correct: 5, wrong: 0, averageResponseTimeMs: 900, difficultyScore: 0.2, errorDebt: 0, lastSeenAt: 1700000000001, lastSeenTurn: 4, excluded: false }
+      }
+    };
+
+    saveProfileForUser('Anna', anna as never);
+    saveProfileForUser('Max', max as never);
+
+    expect(loadProfileForUser('Anna')?.problemStats['1+1']?.attempts).toBe(3);
+    expect(loadProfileForUser('Anna')?.problemStats['2+2']).toBeUndefined();
+    expect(loadProfileForUser('Max')?.problemStats['2+2']?.attempts).toBe(5);
+    expect(loadProfileForUser('Max')?.problemStats['1+1']).toBeUndefined();
+
+    (globalThis as { localStorage?: Storage }).localStorage = previousStorage;
   });
 });
