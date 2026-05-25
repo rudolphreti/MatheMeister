@@ -41,6 +41,13 @@ export interface ProblemStat {
   excluded: boolean;
 }
 
+export interface SessionAttempt {
+  key: string;
+  expression: string;
+  answer: number;
+  correct: boolean;
+}
+
 export interface SessionState {
   activeProblem: Problem | null;
   typedAnswer: string;
@@ -52,6 +59,10 @@ export interface SessionState {
   currentStats: { correct: number; wrong: number };
   blockedProblemKeys: string[];
   algorithmLog: string[];
+  sessionAttempts: SessionAttempt[];
+  correctionQueue: string[];
+  correctionSolvedKeys: string[];
+  correctionModeActive: boolean;
   lastScreen: 'practice' | 'settings' | 'stats' | 'problem-stats' | 'operations-overview';
 }
 

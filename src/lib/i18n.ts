@@ -52,6 +52,7 @@ export const t = (_lang: Language) => ({
   timeUpTitle: 'Zeit ist abgelaufen',
   timeUpQuestion: 'Möchtest du neu starten?',
   restartSession: 'Neu starten',
+  correctionMode: 'Korrektur',
   enterNameTitle: 'Bitte gib deinen Namen ein',
   namePlaceholder: 'Name',
   startSession: 'Start',

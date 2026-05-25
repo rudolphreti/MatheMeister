@@ -5,10 +5,10 @@ import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadPr
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
-import { appendAlgorithmLog, blockProblemForCurrentSession, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, moveSkippedProblemToQueueEnd } from './lib/session';
+import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, getCorrectionProgress, moveSkippedProblemToQueueEnd } from './lib/session';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
-const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], lastScreen: 'practice' }, problemStats: {} });
+const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], sessionAttempts: [], correctionQueue: [], correctionSolvedKeys: [], correctionModeActive: false, lastScreen: 'practice' }, problemStats: {} });
 
 function calculateRemainingMs(profile: ProfileV1): number {
   if (profile.settings.mode !== 'timed') return profile.session.sessionDurationMs;
@@ -125,7 +125,7 @@ export function App() {
   const doneExamples = profile.session.currentStats.correct + profile.session.currentStats.wrong;
   const sessionExamples = profile.settings.examplesPerSession;
   const endedByExamples = doneExamples >= sessionExamples;
-  const ended = (timed && remaining <= 0) || endedByExamples;
+  const ended = ((timed && remaining <= 0) || endedByExamples) && !profile.session.correctionModeActive;
 
 
   function pushDigit(digit: string) {
@@ -205,7 +205,25 @@ export function App() {
     setFeedback(correct ? 'correct' : 'wrong');
     setPendingProblemStats((current) => ({ ...current, [stat.key]: stat }));
     setProblemQueue((current) => moveSkippedProblemToQueueEnd(current, profile.session.activeProblem?.key ?? ''));
-    setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: next, problemStartedAt: Date.now(), typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) }, blockedProblemKeys: nextBlockedKeys, algorithmLog: appendAlgorithmLog(p.session.algorithmLog, `answer:${correct ? 'correct' : 'wrong'} active:${p.session.activeProblem?.key ?? '-'} ${selectionDebug} ${blockedReason} ${rewardReason} ${persistenceReason}`) } }));
+    setProfile((p) => {
+      if (p.session.correctionModeActive) {
+        const solvedKeys = correct && p.session.activeProblem ? [...p.session.correctionSolvedKeys, p.session.activeProblem.key] : p.session.correctionSolvedKeys;
+        const remainingKeys = p.session.correctionQueue.filter((key) => !solvedKeys.includes(key));
+        const nextCorrectionProblem = remainingKeys.length > 0 ? allProblems.find((problem) => problem.key === remainingKeys[0]) ?? null : null;
+        return {
+          ...p,
+          session: {
+            ...p.session,
+            activeProblem: nextCorrectionProblem,
+            problemStartedAt: Date.now(),
+            typedAnswer: '',
+            correctionSolvedKeys: solvedKeys,
+            correctionModeActive: remainingKeys.length > 0
+          }
+        };
+      }
+      return { ...p, session: { ...p.session, activeProblem: next, problemStartedAt: Date.now(), typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) }, blockedProblemKeys: nextBlockedKeys, algorithmLog: appendAlgorithmLog(p.session.algorithmLog, `answer:${correct ? 'correct' : 'wrong'} active:${p.session.activeProblem?.key ?? '-'} ${selectionDebug} ${blockedReason} ${rewardReason} ${persistenceReason}`), sessionAttempts: [...p.session.sessionAttempts, { key: p.session.activeProblem?.key ?? '', expression: p.session.activeProblem?.expression ?? '', answer: p.session.activeProblem?.answer ?? 0, correct }] } };
+    });
   }
 
   function skipToNextProblem() {
@@ -340,7 +358,19 @@ export function App() {
       {ended && <div className="timeup">
         <p>{timed && remaining <= 0 ? tr.timeUpQuestion : tr.nextSessionQuestion}</p>
         <button className="restart" onClick={restartSession}>{tr.restartSession}</button>
+        <button className="restart" style={{ background: '#f9a825', color: '#000' }} onClick={() => {
+          const correctionQueue = buildCorrectionQueue(profile.session.sessionAttempts);
+          const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
+          const nextProblem = correctionQueue.length > 0 ? combinedPoolMap.get(correctionQueue[0]) ?? null : null;
+          setProfile((p) => ({ ...p, session: { ...p.session, correctionModeActive: correctionQueue.length > 0, correctionQueue, correctionSolvedKeys: [], activeProblem: nextProblem, typedAnswer: '', problemStartedAt: Date.now(), sessionEndsAt: null } }));
+        }}>{tr.correctionMode}</button>
         <button className="restart" onClick={() => { const content = profile.session.algorithmLog.join('\n'); const blob = new Blob([content], { type: 'text/plain;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `session-algorithm-log-${Date.now()}.txt`; a.click(); }}>⬇️ Algorithmus-Log</button>
+        <ul>
+          {buildCorrectionQueue(profile.session.sessionAttempts).map((key) => {
+            const problem = [...pool, ...customProblems].find((p) => p.key === key);
+            return <li key={key}>{problem?.expression ?? key}</li>;
+          })}
+        </ul>
       </div>}
 
       {sessionStarted && <div className="pad">
@@ -348,7 +378,7 @@ export function App() {
           {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button key={d} disabled={ended} onClick={() => pushDigit(d)}>{d}</button>)}
         </div>
         <button className="delete" disabled={ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>⌫ {tr.del}</button>
-        <button className="next" disabled={ended} onClick={skipToNextProblem}>→ {tr.next}</button>
+        <button className="next" disabled={ended || profile.session.correctionModeActive} onClick={skipToNextProblem}>→ {tr.next}</button>
         <button className="enter" disabled={ended} onClick={submit}>↵ {tr.ok}</button>
       </div>}
     </section>}

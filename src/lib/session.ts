@@ -10,6 +10,24 @@ export function moveSkippedProblemToQueueEnd(queue: string[], activeProblemKey: 
   return nextQueue;
 }
 
+export function buildCorrectionQueue(attempts: Array<{ key: string; correct: boolean }>): string[] {
+  const seen = new Set<string>();
+  const queue: string[] = [];
+  attempts.forEach((attempt) => {
+    if (attempt.correct) return;
+    if (!attempt.key || seen.has(attempt.key)) return;
+    seen.add(attempt.key);
+    queue.push(attempt.key);
+  });
+  return queue;
+}
+
+export function getCorrectionProgress(correctionQueue: string[], solvedKeys: string[]): { solved: number; total: number; remaining: number } {
+  const total = correctionQueue.length;
+  const solved = Math.max(0, Math.min(total, solvedKeys.length));
+  return { solved, total, remaining: Math.max(0, total - solved) };
+}
+
 
 export function ensureActiveProblemIsAllowed(
   activeProblem: Problem | null,
@@ -54,7 +72,11 @@ export function buildSessionStateForUserStart(profile: ProfileV1, startAt: numbe
     currentStats: { correct: 0, wrong: 0 },
     blockedProblemKeys: [],
     lastScreen: 'practice',
-    algorithmLog: appendAlgorithmLog([], `session_started mode:${profile.settings.mode} examples:${profile.settings.examplesPerSession}`, startAt)
+    algorithmLog: appendAlgorithmLog([], `session_started mode:${profile.settings.mode} examples:${profile.settings.examplesPerSession}`, startAt),
+    sessionAttempts: [],
+    correctionQueue: [],
+    correctionSolvedKeys: [],
+    correctionModeActive: false
   };
 }
 
@@ -71,7 +93,11 @@ export function buildSessionStateBeforeStart(profile: ProfileV1, durationMs: num
     currentStats: { correct: 0, wrong: 0 },
     blockedProblemKeys: [],
     lastScreen: 'practice',
-    algorithmLog: []
+    algorithmLog: [],
+    sessionAttempts: [],
+    correctionQueue: [],
+    correctionSolvedKeys: [],
+    correctionModeActive: false
   };
 }
 

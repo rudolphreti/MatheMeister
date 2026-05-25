@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   appendAlgorithmLog,
+  buildCorrectionQueue,
+  getCorrectionProgress,
   buildSessionStateForUserStart,
   buildSessionStateBeforeStart,
   buildProfileForSessionReset,
@@ -45,6 +47,21 @@ describe('moveSkippedProblemToQueueEnd', () => {
 
   it('keeps queue unchanged when active key is duplicated', () => {
     expect(moveSkippedProblemToQueueEnd(['1+1', '2+2', '1+1'], '1+1')).toEqual(['1+1', '2+2', '1+1']);
+  });
+});
+
+describe('correction queue helpers', () => {
+  it('builds unique correction queue from wrong attempts only', () => {
+    expect(buildCorrectionQueue([
+      { key: '1+1', correct: false },
+      { key: '2+2', correct: true },
+      { key: '1+1', correct: false },
+      { key: '3+3', correct: false }
+    ])).toEqual(['1+1', '3+3']);
+  });
+
+  it('returns progress tuple for correction mode', () => {
+    expect(getCorrectionProgress(['1+1', '2+2', '3+3'], ['1+1'])).toEqual({ solved: 1, total: 3, remaining: 2 });
   });
 });
 
