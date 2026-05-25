@@ -74,6 +74,32 @@ export function selectNextProblem(eligibleProblems: Problem[], stats: Record<str
   return weightedRandomPick(finalPool, (problem) => calculateProblemWeight(problem, stats, selectedGroup));
 }
 
+export function explainSelectionDecision(eligibleProblems: Problem[], stats: Record<string, ProblemStat>, sessionState: SelectionSessionState): string {
+  const errorDebt = eligibleProblems.filter((problem) => (stats[problem.key]?.errorDebt ?? 0) > 0);
+  const neverSeen = eligibleProblems.filter((problem) => !stats[problem.key] || stats[problem.key].attempts === 0);
+  const slowSolved = eligibleProblems.filter((problem) => (stats[problem.key]?.attempts ?? 0) > 0);
+  const useMonotonyBreak = sessionState.consecutiveErrorDebtSelections >= 4 && neverSeen.length > 0;
+
+  let selectedGroup: PriorityGroup = 'fallback';
+  let source = eligibleProblems;
+  if (useMonotonyBreak) {
+    selectedGroup = 'neverSeen'; source = neverSeen;
+  } else if (errorDebt.length > 0) {
+    selectedGroup = 'errorDebt'; source = errorDebt;
+  } else if (neverSeen.length > 0) {
+    selectedGroup = 'neverSeen'; source = neverSeen;
+  } else if (slowSolved.length > 0) {
+    selectedGroup = 'slowSolved'; source = slowSolved;
+  }
+
+  const antiRepeat = source.length > 1 && sessionState.previousProblemKey ? source.filter((problem) => problem.key !== sessionState.previousProblemKey) : source;
+  const finalPool = antiRepeat.length > 0 ? antiRepeat : source;
+  const selected = weightedRandomPick(finalPool, (problem) => calculateProblemWeight(problem, stats, selectedGroup));
+  const excludedPrevious = source.length > antiRepeat.length && sessionState.previousProblemKey ? sessionState.previousProblemKey : '-';
+
+  return `selectedGroup:${selectedGroup} candidates:{total:${eligibleProblems.length},errorDebt:${errorDebt.length},neverSeen:${neverSeen.length},slowSolved:${slowSolved.length}} monotonyBreak:${useMonotonyBreak} excluded_previous:${excludedPrevious} finalPool:${finalPool.map((problem) => problem.key).join('|')} selected:${selected.key}`;
+}
+
 export function coinReward(ms: number, correct: boolean): number {
   if (!correct) return 0;
   const normalizedMs = Number.isFinite(ms) ? Math.max(0, ms) : Number.POSITIVE_INFINITY;
@@ -81,6 +107,16 @@ export function coinReward(ms: number, correct: boolean): number {
   if (normalizedMs < MEDIUM_MS) return 3;
   if (normalizedMs < SLOW_MS) return 2;
   return 1;
+}
+
+export function explainCoinReward(ms: number, correct: boolean): string {
+  const normalizedMs = Number.isFinite(ms) ? Math.max(0, ms) : Number.POSITIVE_INFINITY;
+  const coins = coinReward(ms, correct);
+  if (!correct) return `coin_reason:incorrect answer, responseMs:${Math.round(normalizedMs)}, awarded:${coins}`;
+  if (normalizedMs < FAST_MS) return `coin_reason:fast (<${FAST_MS}ms), responseMs:${Math.round(normalizedMs)}, awarded:${coins}`;
+  if (normalizedMs < MEDIUM_MS) return `coin_reason:medium (${FAST_MS}-${MEDIUM_MS - 1}ms), responseMs:${Math.round(normalizedMs)}, awarded:${coins}`;
+  if (normalizedMs < SLOW_MS) return `coin_reason:slow (${MEDIUM_MS}-${SLOW_MS - 1}ms), responseMs:${Math.round(normalizedMs)}, awarded:${coins}`;
+  return `coin_reason:very_slow (>=${SLOW_MS}ms), responseMs:${Math.round(normalizedMs)}, awarded:${coins}`;
 }
 
 export function updateProblemStatsAfterAnswer(existing: ProblemStat | undefined, p: Problem, isCorrect: boolean, responseTimeMs: number, now: number, turn: number | null = null): ProblemStat {
