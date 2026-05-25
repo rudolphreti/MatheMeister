@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildProblemPool, generateProblem, parseCustomProblems } from './lib/math';
-import { coinReward, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
+import { coinReward, explainCoinReward, explainSelectionDecision, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
 import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, saveLastUserName, saveProfile } from './lib/storage';
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
@@ -186,15 +186,26 @@ export function App() {
       ? profile.session.blockedProblemKeys
       : blockProblemForCurrentSession(profile.session.blockedProblemKeys, profile.session.activeProblem.key);
     const nextPool = buildNextProblemPool(allProblems, nextBlockedKeys);
-    const next = pickWeightedProblem(
+    const nextStats = { ...sessionStats, [stat.key]: stat };
+    const selectionDebug = explainSelectionDecision(
       nextPool,
-      { ...sessionStats, [stat.key]: stat },
-      profile.session.activeProblem.key
+      nextStats,
+      {
+        previousProblemKey: profile.session.activeProblem.key,
+        turnNumber: profile.session.currentStats.correct + profile.session.currentStats.wrong + 1,
+        consecutiveErrorDebtSelections: 0
+      }
     );
+    const next = pickWeightedProblem(nextPool, nextStats, profile.session.activeProblem.key);
+    const blockedReason = correct
+      ? `excluded:none (correct answer, keep problem available)`
+      : `excluded:${profile.session.activeProblem.key} (wrong answer, blocked for current session)`;
+    const persistenceReason = `result_buffered:true pendingStatsKey:${stat.key} autosave_profile:on`;
+    const rewardReason = explainCoinReward(ms, correct);
     setFeedback(correct ? 'correct' : 'wrong');
     setPendingProblemStats((current) => ({ ...current, [stat.key]: stat }));
     setProblemQueue((current) => moveSkippedProblemToQueueEnd(current, profile.session.activeProblem?.key ?? ''));
-    setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: next, problemStartedAt: Date.now(), typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) }, blockedProblemKeys: nextBlockedKeys, algorithmLog: appendAlgorithmLog(p.session.algorithmLog, `answer:${correct ? 'correct' : 'wrong'} active:${p.session.activeProblem?.key ?? '-'} next:${next.key} pool:${nextPool.length} blocked:${nextBlockedKeys.length}`) } }));
+    setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: next, problemStartedAt: Date.now(), typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) }, blockedProblemKeys: nextBlockedKeys, algorithmLog: appendAlgorithmLog(p.session.algorithmLog, `answer:${correct ? 'correct' : 'wrong'} active:${p.session.activeProblem?.key ?? '-'} ${selectionDebug} ${blockedReason} ${rewardReason} ${persistenceReason}`) } }));
   }
 
   function skipToNextProblem() {

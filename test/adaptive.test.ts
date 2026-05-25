@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildEligibleProblemPool, calculateProblemWeight, coinReward, pickWeightedProblem, selectNextProblem, updateProblemStatsAfterAnswer, updateProblemStat } from '../src/lib/adaptive';
+import { buildEligibleProblemPool, calculateProblemWeight, coinReward, explainCoinReward, explainSelectionDecision, pickWeightedProblem, selectNextProblem, updateProblemStatsAfterAnswer, updateProblemStat } from '../src/lib/adaptive';
 import { buildProblemPool } from '../src/lib/math';
 
 const settings = { mode:'timed', sessionMinutes:10, min:0, max:10, additionEnabled:true, subtractionEnabled:true, subtractionMinuendMin:0, subtractionMinuendMax:10, terms:2, soundEnabled:true, language:'de', examplesPerSession:10, excludeResultZero:false, excludePlusMinusZero:false, excludePlusMinusOne:false, customTasksText:'' } as const;
@@ -41,5 +41,25 @@ describe('adaptive', () => {
   it('difficulty update', () => {
     const st = updateProblemStat(undefined, { key: '1+1', expression: '1 + 1', answer: 2 }, false, 1000, Date.now());
     expect(st.difficultyScore).toBe(5);
+  });
+
+  it('explains coin reward thresholds and correctness', () => {
+    expect(explainCoinReward(2500, true)).toContain('fast');
+    expect(explainCoinReward(2500, true)).toContain('5');
+    expect(explainCoinReward(7500, true)).toContain('slow');
+    expect(explainCoinReward(1000, false)).toContain('incorrect');
+  });
+
+  it('explains selection logic with chosen group and exclusions', () => {
+    const pool = [{ key: '1+1', expression: '1 + 1', answer: 2 }, { key: '2+2', expression: '2 + 2', answer: 4 }];
+    const explanation = explainSelectionDecision(
+      pool,
+      { '2+2': { key:'2+2', expression:'2 + 2', attempts:3, correct:1, wrong:2, averageResponseTimeMs:7000, difficultyScore:10, errorDebt:2, lastSeenAt:null, lastSeenTurn:null, excluded:false } },
+      { previousProblemKey: '1+1', turnNumber: 3, consecutiveErrorDebtSelections: 0 }
+    );
+
+    expect(explanation).toContain('selectedGroup:errorDebt');
+    expect(explanation).toContain('excluded_previous:-');
+    expect(explanation).toContain('selected:2+2');
   });
 });
