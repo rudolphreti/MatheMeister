@@ -48,6 +48,8 @@ export interface SessionState {
   sessionDurationMs: number;
   coins: number;
   currentStats: { correct: number; wrong: number };
+  blockedProblemKeys: string[];
+  algorithmLog: string[];
   lastScreen: 'practice' | 'settings' | 'stats' | 'problem-stats' | 'operations-overview';
 }
 

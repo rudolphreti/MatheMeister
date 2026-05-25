@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { ensureActiveProblemIsAllowed, moveSkippedProblemToQueueEnd } from '../src/lib/session';
+import {
+  appendAlgorithmLog,
+  blockProblemForCurrentSession,
+  buildNextProblemPool,
+  ensureActiveProblemIsAllowed,
+  moveSkippedProblemToQueueEnd
+} from '../src/lib/session';
 import { Problem } from '../src/lib/types';
 
 const p1: Problem = { key: '1+1', expression: '1 + 1', answer: 2 };
@@ -35,5 +41,28 @@ describe('moveSkippedProblemToQueueEnd', () => {
 
   it('keeps queue unchanged when active key is duplicated', () => {
     expect(moveSkippedProblemToQueueEnd(['1+1', '2+2', '1+1'], '1+1')).toEqual(['1+1', '2+2', '1+1']);
+  });
+});
+
+describe('session algorithm helpers', () => {
+  it('blocks wrong problem only once and keeps previous blocks', () => {
+    expect(blockProblemForCurrentSession([], '1+1')).toEqual(['1+1']);
+    expect(blockProblemForCurrentSession(['1+1'], '1+1')).toEqual(['1+1']);
+    expect(blockProblemForCurrentSession(['1+1'], '2+2')).toEqual(['1+1', '2+2']);
+  });
+
+  it('builds next pool without blocked problems', () => {
+    expect(buildNextProblemPool([p1, p2], ['1+1']).map((p) => p.key)).toEqual(['2+2']);
+  });
+
+  it('keeps at least one problem when all are blocked', () => {
+    expect(buildNextProblemPool([p1], ['1+1']).map((p) => p.key)).toEqual(['1+1']);
+  });
+
+  it('appends timestamped log lines', () => {
+    const next = appendAlgorithmLog([], 'selected 2+2', 1700000000000);
+    expect(next).toHaveLength(1);
+    expect(next[0]).toContain('selected 2+2');
+    expect(next[0]).toContain('2023');
   });
 });

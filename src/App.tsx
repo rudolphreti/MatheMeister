@@ -5,10 +5,10 @@ import { exportProfile, importProfile, loadLastUserName, loadProfile, saveLastUs
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
-import { ensureActiveProblemIsAllowed, moveSkippedProblemToQueueEnd } from './lib/session';
+import { appendAlgorithmLog, blockProblemForCurrentSession, buildNextProblemPool, ensureActiveProblemIsAllowed, moveSkippedProblemToQueueEnd } from './lib/session';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
-const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, lastScreen: 'practice' }, problemStats: {} });
+const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], lastScreen: 'practice' }, problemStats: {} });
 
 function calculateRemainingMs(profile: ProfileV1): number {
   if (profile.settings.mode !== 'timed') return profile.session.sessionDurationMs;
@@ -151,7 +151,9 @@ export function App() {
         sessionStartAt: null,
         sessionEndsAt: null,
         sessionDurationMs: durationMs,
-        currentStats: { correct: 0, wrong: 0 }
+        currentStats: { correct: 0, wrong: 0 },
+        blockedProblemKeys: [],
+        algorithmLog: []
       }
     }));
     setPendingProblemStats({});
@@ -179,7 +181,11 @@ export function App() {
     const sessionStats = mergeProblemStats(profile.problemStats, pendingProblemStats);
     const stat = updateProblemStat(sessionStats[profile.session.activeProblem.key], profile.session.activeProblem, correct, ms, Date.now());
     const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
-    const nextPool = Array.from(combinedPoolMap.values());
+    const allProblems = Array.from(combinedPoolMap.values());
+    const nextBlockedKeys = correct
+      ? profile.session.blockedProblemKeys
+      : blockProblemForCurrentSession(profile.session.blockedProblemKeys, profile.session.activeProblem.key);
+    const nextPool = buildNextProblemPool(allProblems, nextBlockedKeys);
     const next = pickWeightedProblem(
       nextPool,
       { ...sessionStats, [stat.key]: stat },
@@ -188,7 +194,7 @@ export function App() {
     setFeedback(correct ? 'correct' : 'wrong');
     setPendingProblemStats((current) => ({ ...current, [stat.key]: stat }));
     setProblemQueue((current) => moveSkippedProblemToQueueEnd(current, profile.session.activeProblem?.key ?? ''));
-    setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: next, problemStartedAt: Date.now(), typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) } } }));
+    setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: next, problemStartedAt: Date.now(), typedAnswer: '', coins: p.session.coins + coins, currentStats: { correct: p.session.currentStats.correct + (correct ? 1 : 0), wrong: p.session.currentStats.wrong + (correct ? 0 : 1) }, blockedProblemKeys: nextBlockedKeys, algorithmLog: appendAlgorithmLog(p.session.algorithmLog, `answer:${correct ? 'correct' : 'wrong'} active:${p.session.activeProblem?.key ?? '-'} next:${next.key} pool:${nextPool.length} blocked:${nextBlockedKeys.length}`) } }));
   }
 
   function skipToNextProblem() {
@@ -261,7 +267,8 @@ export function App() {
         ...p.session,
         sessionStartAt: p.settings.mode === 'timed' ? startAt : null,
         sessionEndsAt: p.settings.mode === 'timed' ? startAt + durationMs : null,
-        sessionDurationMs: durationMs
+        sessionDurationMs: durationMs,
+        algorithmLog: appendAlgorithmLog(p.session.algorithmLog, `session_started mode:${p.settings.mode} examples:${p.settings.examplesPerSession}`)
       }
     }));
     saveLastUserName(nextName);
@@ -306,6 +313,7 @@ export function App() {
       {ended && <div className="timeup">
         <p>{timed && remaining <= 0 ? tr.timeUpQuestion : tr.nextSessionQuestion}</p>
         <button className="restart" onClick={restartSession}>{tr.restartSession}</button>
+        <button className="restart" onClick={() => { const content = profile.session.algorithmLog.join('\n'); const blob = new Blob([content], { type: 'text/plain;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `session-algorithm-log-${Date.now()}.txt`; a.click(); }}>⬇️ Algorithmus-Log</button>
       </div>}
 
       <div className="pad">
