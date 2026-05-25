@@ -1,24 +1,24 @@
 # AI Workflow Rules
 
-Te reguły opisują sposób pracy agenta AI w tym repozytorium.
+These rules define how an AI agent must work in this repository.
 
-## Obowiązkowy przebieg pracy
+## Required workflow
 
-1. **Najpierw parafraza zadania**  
-   Zanim agent wygeneruje kod, musi własnymi słowami opisać, co zrozumiał i co zamierza zrobić.
+1. **Paraphrase before coding**  
+   Before generating code, the agent must explain in its own words what it understood and what it is going to do.
 
-2. **Najpierw lektura reguł z `DOCS/`**  
-   Każde zadanie rozpoczynamy od sprawdzenia aktualnych reguł w folderze `DOCS`.
+2. **Read `DOCS/` rules first**  
+   Every task starts with checking the current rules in the `DOCS` directory.
 
-3. **Praca zgodna z TDD**  
-   Zmiany implementacyjne prowadzić w cyklu: test -> implementacja -> refaktoryzacja.
+3. **Work in TDD cycle**  
+   Implementation changes should follow: test -> implementation -> refactor.
 
-4. **Automatyzacja i uruchamianie developerki**  
-   `npm run dev` uruchamiamy dopiero po zielonych testach.
+4. **Automation and dev server policy**  
+   Run `npm run dev` only after tests are green.
 
-## Minimalna checklista przed zakończeniem zadania
+## Minimal checklist before finishing
 
-- [ ] Agent zrobił parafrazę zadania przed kodowaniem.
-- [ ] Reguły z `DOCS/` zostały odczytane.
-- [ ] Testy przeszły.
-- [ ] Dopiero po testach uruchomiono `npm run dev` (jeśli było potrzebne).
+- [ ] The agent provided a task paraphrase before coding.
+- [ ] Rules from `DOCS/` were read.
+- [ ] Tests passed.
+- [ ] `npm run dev` was started only after tests (if needed).
