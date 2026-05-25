@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clearAllAppData, importProfile, exportProfile, loadLastUserName, loadProfileForUser, saveLastUserName, saveProfileForUser } from '../src/lib/storage';
+import { clearAllAppData, clearProfileForUser, importProfile, exportProfile, loadLastUserName, loadProfileForUser, saveLastUserName, saveProfileForUser } from '../src/lib/storage';
 
 const profile = { schemaVersion:1, userName:'Anna', leaderboard:[], settings:{ mode:'timed', sessionMinutes:10, min:0, max:20, additionEnabled:true, subtractionEnabled:true, subtractionMinuendMin:0, subtractionMinuendMax:20, terms:2, soundEnabled:true, language:'de', examplesPerSession:10, excludeResultZero:false, excludePlusMinusZero:false, excludePlusMinusOne:false, customTasksText:"" }, session:{ activeProblem:null, typedAnswer:'', problemStartedAt:null, sessionStartAt:null, sessionEndsAt:null, sessionDurationMs:0, coins:0, currentStats:{correct:0,wrong:0}, lastScreen:'practice' }, problemStats:{} };
 
@@ -55,6 +55,33 @@ describe('storage', () => {
     expect(loadProfileForUser('Anna')?.problemStats['2+2']).toBeUndefined();
     expect(loadProfileForUser('Max')?.problemStats['2+2']?.attempts).toBe(5);
     expect(loadProfileForUser('Max')?.problemStats['1+1']).toBeUndefined();
+
+    (globalThis as { localStorage?: Storage }).localStorage = previousStorage;
+  });
+
+  it('clears profile for a single user', () => {
+    const memory = new Map<string, string>();
+    const previousStorage = (globalThis as { localStorage?: Storage }).localStorage;
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        memory.set(key, value);
+      },
+      removeItem: (key: string) => {
+        memory.delete(key);
+      },
+      clear: () => memory.clear(),
+      key: (index: number) => Array.from(memory.keys())[index] ?? null,
+      get length() { return memory.size; }
+    } as Storage;
+
+    saveProfileForUser('Anna', { ...profile, userName: 'Anna', session: { ...profile.session, coins: 11 } } as never);
+    saveProfileForUser('Max', { ...profile, userName: 'Max', session: { ...profile.session, coins: 22 } } as never);
+
+    clearProfileForUser('Anna');
+
+    expect(loadProfileForUser('Anna')).toBeNull();
+    expect(loadProfileForUser('Max')?.session.coins).toBe(22);
 
     (globalThis as { localStorage?: Storage }).localStorage = previousStorage;
   });

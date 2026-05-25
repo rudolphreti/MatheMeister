@@ -53,6 +53,17 @@ export function loadProfileForUser(userName: string): ProfileV1 | null {
   return normalizeProfile(profile);
 }
 
+export function clearProfileForUser(userName: string) {
+  const safeName = userName.trim();
+  if (!safeName) return;
+  const storage = getStorage();
+  if (!storage) return;
+  const profiles = loadAllUserProfiles();
+  if (!(safeName in profiles)) return;
+  delete profiles[safeName];
+  storage.setItem(USER_PROFILES_KEY, JSON.stringify(profiles));
+}
+
 function loadAllUserProfiles(): Record<string, ProfileV1> {
   const storage = getStorage();
   if (!storage) return {};
