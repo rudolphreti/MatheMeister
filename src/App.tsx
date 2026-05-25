@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildProblemPool, generateProblem, parseCustomProblems } from './lib/math';
 import { coinReward, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
-import { exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, saveLastUserName, saveProfile } from './lib/storage';
+import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, saveLastUserName, saveProfile } from './lib/storage';
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
@@ -388,6 +388,22 @@ export function App() {
             placeholder={tr.customTasksPlaceholder}
           />
         </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>{tr.dangerZoneTitle}</legend>
+        <button style={{ background: '#b71c1c', color: '#fff' }} onClick={() => {
+          if (!window.confirm(tr.clearAllDataConfirm)) return;
+          clearAllAppData();
+          setPendingProblemStats({});
+          setProblemQueue([]);
+          setFeedback(null);
+          setMenuOpen(false);
+          setImportMessage(tr.clearAllDataDone);
+          setNameInput('');
+          setNameConfirmed(false);
+          setProfile(mkDefault());
+        }}>{tr.clearAllDataButton}</button>
       </fieldset>
       <button onClick={() => { const blob = new Blob([exportProfile(profile)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'math-profile.json'; a.click(); }}>{tr.exportJson}</button>
       <input type="file" accept="application/json" onChange={async (e) => {

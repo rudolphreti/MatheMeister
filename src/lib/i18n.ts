@@ -39,6 +39,11 @@ export const t = (_lang: Language) => ({
   customTasksPlaceholder: '12+3\n17-14\n13-10\n18+1',
   sessionProgressLabel: 'Sitzung',
   exportJson: 'JSON exportieren',
+
+  dangerZoneTitle: 'Gefahrenbereich',
+  clearAllDataButton: 'Alle Daten löschen',
+  clearAllDataConfirm: 'Möchtest du wirklich alle Daten löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.',
+  clearAllDataDone: '✅ Alle Daten wurden gelöscht.',
   statsProblem: 'Aufgabe',
   statsCorrect: 'Richtig',
   statsWrong: 'Falsch',

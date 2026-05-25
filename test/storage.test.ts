@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { importProfile, exportProfile, loadLastUserName, loadProfileForUser, saveLastUserName, saveProfileForUser } from '../src/lib/storage';
+import { clearAllAppData, importProfile, exportProfile, loadLastUserName, loadProfileForUser, saveLastUserName, saveProfileForUser } from '../src/lib/storage';
 
 const profile = { schemaVersion:1, userName:'Anna', leaderboard:[], settings:{ mode:'timed', sessionMinutes:10, min:0, max:20, additionEnabled:true, subtractionEnabled:true, subtractionMinuendMin:0, subtractionMinuendMax:20, terms:2, soundEnabled:true, language:'de', examplesPerSession:10, excludeResultZero:false, excludePlusMinusZero:false, excludePlusMinusOne:false, customTasksText:"" }, session:{ activeProblem:null, typedAnswer:'', problemStartedAt:null, sessionStartAt:null, sessionEndsAt:null, sessionDurationMs:0, coins:0, currentStats:{correct:0,wrong:0}, lastScreen:'practice' }, problemStats:{} };
 
@@ -59,3 +59,35 @@ describe('storage', () => {
     (globalThis as { localStorage?: Storage }).localStorage = previousStorage;
   });
 });
+
+
+  it('clears all application keys', () => {
+    const memory = new Map<string, string>();
+    const previousStorage = (globalThis as { localStorage?: Storage }).localStorage;
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        memory.set(key, value);
+      },
+      removeItem: (key: string) => {
+        memory.delete(key);
+      },
+      clear: () => memory.clear(),
+      key: (index: number) => Array.from(memory.keys())[index] ?? null,
+      get length() { return memory.size; }
+    } as Storage;
+
+    memory.set('math-practice-app:v1', '{"some":"profile"}');
+    memory.set('math-practice-app:last-user-name', 'Anna');
+    memory.set('math-practice-app:user-profiles:v1', '{"Anna":{}}');
+    memory.set('other-key', 'keep');
+
+    clearAllAppData();
+
+    expect(memory.get('math-practice-app:v1')).toBeUndefined();
+    expect(memory.get('math-practice-app:last-user-name')).toBeUndefined();
+    expect(memory.get('math-practice-app:user-profiles:v1')).toBeUndefined();
+    expect(memory.get('other-key')).toBe('keep');
+
+    (globalThis as { localStorage?: Storage }).localStorage = previousStorage;
+  });

@@ -175,6 +175,15 @@ export function exportProfile(profile: ProfileV1): string {
   return JSON.stringify(profile, null, 2);
 }
 
+
+export function clearAllAppData() {
+  const storage = getStorage();
+  if (!storage) return;
+  storage.removeItem(STORAGE_KEY);
+  storage.removeItem(LAST_USER_NAME_KEY);
+  storage.removeItem(USER_PROFILES_KEY);
+}
+
 export function importProfile(json: string): ProfileV1 {
   const parsed = JSON.parse(json);
   if (!isProfileV1(parsed)) throw new Error('Invalid schema');
