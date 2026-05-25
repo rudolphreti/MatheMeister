@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { buildProblemPool, generateProblem, parseCustomProblems } from './lib/math';
 import { coinReward, explainCoinReward, explainSelectionDecision, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
 import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, saveLastUserName, saveProfile } from './lib/storage';
-import { playCoinSound } from './lib/audio';
+import { playCoinSound, playDigitSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, getCorrectionProgress, moveSkippedProblemToQueueEnd } from './lib/session';
@@ -142,6 +142,7 @@ export function App() {
 
   function pushDigit(digit: string) {
     if (ended) return;
+    playDigitSound(profile.settings.soundEnabled);
     setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: (p.session.typedAnswer + digit).slice(0, 3) } }));
   }
 
@@ -331,10 +332,12 @@ export function App() {
 
   if (!nameConfirmed) {
     return <div className="min-h-screen w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8 text-base sm:text-lg md:text-xl lg:text-2xl overflow-hidden">
-      <section>
-        <h2>{tr.enterNameTitle}</h2>
-        <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmUser(); }} placeholder={tr.namePlaceholder} />
-        <button onClick={handleConfirmUser}>{tr.ok}</button>
+      <section className="mx-auto mt-8 flex w-full max-w-xl flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:mt-14 sm:p-6">
+        <h2 className="text-2xl font-bold sm:text-3xl">{tr.enterNameTitle}</h2>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <input className="h-12 w-full rounded-lg border border-slate-300 px-3 text-xl sm:text-2xl" value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmUser(); }} placeholder={tr.namePlaceholder} />
+          <button className="h-12 rounded-lg bg-blue-700 px-5 font-bold text-white sm:min-w-24" onClick={handleConfirmUser}>{tr.ok}</button>
+        </div>
       </section>
     </div>;
   }
@@ -385,13 +388,15 @@ export function App() {
         </ul>
       </div>}
 
-      {sessionStarted && <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-        <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
+      {sessionStarted && <div className="grid grid-cols-1 gap-2">
+        <div className="grid grid-cols-10 gap-2">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button key={d} disabled={ended} onClick={() => pushDigit(d)}>{d}</button>)}
         </div>
-        <button className="rounded bg-red-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>⌫ {tr.del}</button>
-        <button className="rounded bg-blue-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended || profile.session.correctionModeActive} onClick={skipToNextProblem}>→ {tr.next}</button>
-        <button className="rounded bg-green-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended} onClick={submit}>↵ {tr.ok}</button>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <button className="rounded bg-red-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>⌫ {tr.del}</button>
+          <button className="rounded bg-blue-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended || profile.session.correctionModeActive} onClick={skipToNextProblem}>→ {tr.next}</button>
+          <button className="rounded bg-green-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended} onClick={submit}>↵ {tr.ok}</button>
+        </div>
       </div>}
     </section>}
     {profile.session.lastScreen === 'settings' && <section>
