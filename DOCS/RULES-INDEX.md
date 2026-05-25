@@ -9,7 +9,11 @@ Recommended reading order:
 4. `RULES-DATA-STORAGE.md`
 5. `RULES-SCOPE-DONE.md`
 6. `RULES-CODE-STYLE.md`
+7. `RULES-AI-WORKFLOW.md`
 
 Conflict rule:
 - If rules conflict, prefer the more specific file and section.
 - Project-level system/developer instructions always win.
+
+Note:
+- For AI-agent workflow conventions, see `RULES-AI-WORKFLOW.md`.

@@ -16,6 +16,26 @@ Die schwierigsten Aufgaben werden anhand der Statistik (`aufgabenstatistik` / `p
 
 Die Aufgabenauswahl nutzt diese Statistik für gewichtete Zufallsauswahl. Dadurch erscheinen schwierigere Aufgaben häufiger.
 
+## Jak działa wybór zadań (krótko i po ludzku)
+
+Algorytm działa jak nauczyciel: nie losuje pytań „w ciemno”, tylko patrzy, co dziecku idzie trudniej.
+
+Kolejność doboru kolejnego zadania:
+
+1. **Najpierw wracają błędy** – jeśli w zadaniu była pomyłka, dostaje ono `errorDebt` (dług błędu) i wraca, aż zostanie poprawnie „odrobione”.
+2. **Potem nowe zadania** – gdy brak błędów do poprawy, aplikacja poszerza materiał o działania jeszcze niećwiczone.
+3. **Na końcu zadania wolne** – jeśli odpowiedź była poprawna, ale długo trwała, takie zadanie też wraca częściej.
+
+Dodatkowe zasady:
+
+- pula zadań jest budowana z ustawień sesji (zakres, działania, liczba składników),
+- odrzucane są działania niedozwolone (np. ujemny wynik lub ujemny wynik pośredni),
+- wybór jest **ważonym losowaniem** (trudniejsze zadania mają większą szansę, ale nie „lecą” zawsze w tej samej kolejności),
+- aplikacja unika pokazywania tego samego działania dwa razy pod rząd, jeśli są inne opcje,
+- bardzo długie pauzy są przycinane do limitu czasu w statystykach, żeby nie psuć średniej.
+
+Monety są motywacją i są liczone osobno: poprawnie i szybciej = więcej monet, błędna odpowiedź = 0 monet. Błąd nie zabiera monet, ale zwiększa szansę powrotu zadania.
+
 ## `benutzerdefinierte aufgaben`
 
 Benutzerdefinierte Aufgaben werden bevorzugt berücksichtigt, aber gezielt gesteuert:
