@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildProblemPool, generateProblem, parseCustomProblems } from './lib/math';
 import { coinReward, explainCoinReward, explainSelectionDecision, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
-import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, saveLastUserName, saveProfile } from './lib/storage';
+import { clearAllAppData, exportProfile, importProfile, listStoredUserNames, loadLastUserName, loadProfile, saveLastUserName, saveProfile } from './lib/storage';
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 import { maybeAppendLeaderboardEntry, mergeProblemStats, parseBinaryOperation, sortLeaderboard, sortStats } from './lib/appModel';
 import { appendAlgorithmLog, blockProblemForCurrentSession, buildNextProblemPool, ensureActiveProblemIsAllowed, moveSkippedProblemToQueueEnd } from './lib/session';
+import { resolveProfileForSelectedUser } from './lib/userProfiles';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], lastScreen: 'practice' }, problemStats: {} });
@@ -40,10 +41,12 @@ export function App() {
   const [now, setNow] = useState(() => Date.now());
   const [nameInput, setNameInput] = useState(() => loadLastUserName());
   const [nameConfirmed, setNameConfirmed] = useState<boolean>(false);
+  const [sessionStarted, setSessionStarted] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pendingProblemStats, setPendingProblemStats] = useState<Record<string, ProblemStat>>({});
   const [problemQueue, setProblemQueue] = useState<string[]>([]);
   const tr = t(profile.settings.language);
+  const existingUsers = useMemo(() => listStoredUserNames(), [profile.userName]);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
   const customProblems = useMemo(() => parseCustomProblems(profile.settings), [profile.settings]);
 
@@ -56,10 +59,11 @@ export function App() {
     return () => window.clearInterval(id);
   }, []);
   useEffect(() => {
+    if (!sessionStarted) return;
     if (!profile.session.activeProblem) {
       setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: generateProblem(p.settings), problemStartedAt: Date.now() } }));
     }
-  }, [profile.session.activeProblem, profile.settings]);
+  }, [profile.session.activeProblem, profile.settings, sessionStarted]);
 
   useEffect(() => {
     const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
@@ -113,6 +117,27 @@ export function App() {
   }
 
 
+
+  function startSession() {
+    const startAt = Date.now();
+    const durationMs = profile.settings.sessionMinutes * 60000;
+    setSessionStarted(true);
+    setProfile((p) => ({
+      ...p,
+      session: {
+        ...p.session,
+        activeProblem: generateProblem(p.settings),
+        problemStartedAt: Date.now(),
+        typedAnswer: '',
+        sessionStartAt: p.settings.mode === 'timed' ? startAt : null,
+        sessionEndsAt: p.settings.mode === 'timed' ? startAt + durationMs : null,
+        sessionDurationMs: durationMs,
+        currentStats: { correct: 0, wrong: 0 },
+        blockedProblemKeys: [],
+        algorithmLog: appendAlgorithmLog(p.session.algorithmLog, `session_started mode:${p.settings.mode} examples:${p.settings.examplesPerSession}`)
+      }
+    }));
+  }
 
   function restartSession() {
     const durationMs = profile.settings.sessionMinutes * 60000;
@@ -250,36 +275,10 @@ export function App() {
 
     const startAt = Date.now();
     const durationMs = profile.settings.sessionMinutes * 60000;
-    const existingProfile = loadProfileForUser(nextName);
-    if (existingProfile) {
-      setProfile((p) => ({
-        ...existingProfile,
-        userName: nextName,
-        session: {
-          ...existingProfile.session,
-          sessionStartAt: existingProfile.settings.mode === 'timed' ? startAt : null,
-          sessionEndsAt: existingProfile.settings.mode === 'timed' ? startAt + durationMs : null,
-          sessionDurationMs: durationMs,
-          algorithmLog: appendAlgorithmLog(existingProfile.session.algorithmLog, `session_started mode:${existingProfile.settings.mode} examples:${existingProfile.settings.examplesPerSession}`)
-        }
-      }));
-      saveLastUserName(nextName);
-      setNameConfirmed(true);
-      return;
-    }
-
-    setProfile((p) => ({
-      ...p,
-      userName: nextName,
-      session: {
-        ...p.session,
-        sessionStartAt: p.settings.mode === 'timed' ? startAt : null,
-        sessionEndsAt: p.settings.mode === 'timed' ? startAt + durationMs : null,
-        sessionDurationMs: durationMs,
-        algorithmLog: appendAlgorithmLog(p.session.algorithmLog, `session_started mode:${p.settings.mode} examples:${p.settings.examplesPerSession}`)
-      }
-    }));
+    const nextProfile = resolveProfileForSelectedUser(nextName, mkDefault());
+    setProfile((p) => ({ ...p, ...nextProfile, userName: nextName }));
     saveLastUserName(nextName);
+    setSessionStarted(false);
     setNameConfirmed(true);
   };
 
@@ -287,8 +286,9 @@ export function App() {
     return <div className="app">
       <section>
         <h2>{tr.enterNameTitle}</h2>
+        <select value={existingUsers.includes(nameInput) ? nameInput : ''} onChange={(e) => setNameInput(e.target.value)}><option value=''>--</option>{existingUsers.map((user) => <option key={user} value={user}>{user}</option>)}</select>
         <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleStartSession(); }} placeholder={tr.namePlaceholder} />
-        <button onClick={handleStartSession}>{tr.startSession}</button>
+        <button onClick={handleStartSession}>{tr.ok}</button>
       </section>
     </div>;
   }
@@ -309,14 +309,16 @@ export function App() {
     </nav>
     {profile.session.lastScreen === 'practice' && <section className="practice">
       <div className="topbar">
+        <div className="user">👤 {profile.userName}</div>
         <div className="timer">{timed ? `⏱ ${Math.max(0, Math.ceil(remaining / 1000))}s` : '⏱ ∞'}</div>
         <div className="coins">🪙 {profile.session.coins}</div>
         <div className="progress">📘 {tr.sessionProgressLabel}: {doneExamples}/{sessionExamples}</div>
       </div>
-      <div className="expr">{profile.session.activeProblem?.expression ?? '...'}</div>
-      <div className="input">{profile.session.typedAnswer || '0'}</div>
+      {!sessionStarted && <button className="restart" style={{ background: '#2e7d32', color: '#fff' }} onClick={startSession}>{tr.startSession}</button>}
+      <div className="expr">{sessionStarted ? (profile.session.activeProblem?.expression ?? '...') : ''}</div>
+      <div className="input">{sessionStarted ? (profile.session.typedAnswer || '0') : ''}</div>
 
-      <div className="feedback">{ended ? sessionEndMessage : feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' '}</div>
+      <div className="feedback">{!sessionStarted ? ' ' : (ended ? sessionEndMessage : feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' ')}</div>
 
       {ended && <div className="timeup">
         <p>{timed && remaining <= 0 ? tr.timeUpQuestion : tr.nextSessionQuestion}</p>
@@ -326,11 +328,11 @@ export function App() {
 
       <div className="pad">
         <div className="digits-row">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button key={d} disabled={ended} onClick={() => pushDigit(d)}>{d}</button>)}
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button key={d} disabled={!sessionStarted || ended} onClick={() => pushDigit(d)}>{d}</button>)}
         </div>
-        <button className="delete" disabled={ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>⌫ {tr.del}</button>
-        <button className="next" disabled={ended} onClick={skipToNextProblem}>→ {tr.next}</button>
-        <button className="enter" disabled={ended} onClick={submit}>↵ {tr.ok}</button>
+        <button className="delete" disabled={!sessionStarted || ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>⌫ {tr.del}</button>
+        <button className="next" disabled={!sessionStarted || ended} onClick={skipToNextProblem}>→ {tr.next}</button>
+        <button className="enter" disabled={!sessionStarted || ended} onClick={submit}>↵ {tr.ok}</button>
       </div>
     </section>}
     {profile.session.lastScreen === 'settings' && <section>

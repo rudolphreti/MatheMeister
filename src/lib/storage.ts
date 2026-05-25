@@ -45,6 +45,15 @@ export function saveProfileForUser(userName: string, profile: ProfileV1) {
   storage.setItem(USER_PROFILES_KEY, JSON.stringify(profiles));
 }
 
+
+export function listStoredUserNames(): string[] {
+  const profiles = loadAllUserProfiles();
+  return Object.keys(profiles)
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0)
+    .sort((a, b) => a.localeCompare(b));
+}
+
 export function loadProfileForUser(userName: string): ProfileV1 | null {
   const safeName = userName.trim();
   if (!safeName) return null;
