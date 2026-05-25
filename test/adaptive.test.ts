@@ -61,5 +61,7 @@ describe('adaptive', () => {
     expect(explanation).toContain('selectedGroup:errorDebt');
     expect(explanation).toContain('excluded_previous:-');
     expect(explanation).toContain('selected:2+2');
+    expect(explanation).toContain('weights:[');
+    expect(explanation).toContain('groupReasons:');
   });
 });

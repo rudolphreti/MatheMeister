@@ -96,8 +96,16 @@ export function explainSelectionDecision(eligibleProblems: Problem[], stats: Rec
   const finalPool = antiRepeat.length > 0 ? antiRepeat : source;
   const selected = weightedRandomPick(finalPool, (problem) => calculateProblemWeight(problem, stats, selectedGroup));
   const excludedPrevious = source.length > antiRepeat.length && sessionState.previousProblemKey ? sessionState.previousProblemKey : '-';
+  const groupReasons = [
+    `errorDebt>0:${errorDebt.map((problem) => problem.key).join('|') || '-'}`,
+    `neverSeen:${neverSeen.map((problem) => problem.key).join('|') || '-'}`,
+    `slowSolved:${slowSolved.map((problem) => problem.key).join('|') || '-'}`
+  ].join(',');
+  const weightedList = finalPool
+    .map((problem) => `${problem.key}:${calculateProblemWeight(problem, stats, selectedGroup).toFixed(2)}`)
+    .join('|');
 
-  return `selectedGroup:${selectedGroup} candidates:{total:${eligibleProblems.length},errorDebt:${errorDebt.length},neverSeen:${neverSeen.length},slowSolved:${slowSolved.length}} monotonyBreak:${useMonotonyBreak} excluded_previous:${excludedPrevious} finalPool:${finalPool.map((problem) => problem.key).join('|')} selected:${selected.key}`;
+  return `selectedGroup:${selectedGroup} candidates:{total:${eligibleProblems.length},errorDebt:${errorDebt.length},neverSeen:${neverSeen.length},slowSolved:${slowSolved.length}} monotonyBreak:${useMonotonyBreak} groupReasons:${groupReasons} excluded_previous:${excludedPrevious} finalPool:${finalPool.map((problem) => problem.key).join('|')} weights:[${weightedList || '-'}] selected:${selected.key}`;
 }
 
 export function coinReward(ms: number, correct: boolean): number {

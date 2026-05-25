@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildProblemPool, generateProblem, parseCustomProblems } from './lib/math';
 import { coinReward, explainCoinReward, explainSelectionDecision, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
-import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, saveLastUserName, saveProfile } from './lib/storage';
+import { clearAllAppData, clearProfileForUser, exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, saveLastUserName, saveProfile } from './lib/storage';
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
@@ -162,11 +162,13 @@ export function App() {
   function resetSession() {
     const next = mkDefault();
     const settingsToKeep = profile.settings;
+    const currentUserName = profile.userName.trim();
     setFeedback(null);
     setImportMessage('');
     setMenuOpen(false);
-    setNameInput(profile.userName);
+    setNameInput('');
     setNameConfirmed(false);
+    clearProfileForUser(currentUserName);
     setProfile({ ...next, settings: settingsToKeep });
   }
 
@@ -200,7 +202,7 @@ export function App() {
     const blockedReason = correct
       ? `excluded:none (correct answer, keep problem available)`
       : `excluded:${profile.session.activeProblem.key} (wrong answer, blocked for current session)`;
-    const persistenceReason = `result_buffered:true pendingStatsKey:${stat.key} autosave_profile:on`;
+    const persistenceReason = `result_buffered:true pendingStatsKey:${stat.key} autosave_profile:on leaderboard_saved_now:false leaderboard_save_moment:session_restart_or_end`;
     const rewardReason = explainCoinReward(ms, correct);
     setFeedback(correct ? 'correct' : 'wrong');
     setPendingProblemStats((current) => ({ ...current, [stat.key]: stat }));
