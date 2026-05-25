@@ -1,4 +1,5 @@
 import { Problem } from './types';
+import { ProfileV1 } from './types';
 
 export function moveSkippedProblemToQueueEnd(queue: string[], activeProblemKey: string): string[] {
   const matchingKeys = queue.filter((key) => key === activeProblemKey);
@@ -38,4 +39,45 @@ export function appendAlgorithmLog(currentLog: string[] | null | undefined, mess
   const safeLog = Array.isArray(currentLog) ? currentLog : [];
   const stamp = new Date(now).toISOString();
   return [...safeLog, `[${stamp}] ${message}`];
+}
+
+export function buildSessionStateForUserStart(profile: ProfileV1, startAt: number, durationMs: number): ProfileV1['session'] {
+  const isTimedMode = profile.settings.mode === 'timed';
+  return {
+    ...profile.session,
+    typedAnswer: '',
+    problemStartedAt: null,
+    sessionStartAt: startAt,
+    sessionEndsAt: isTimedMode ? startAt + durationMs : null,
+    sessionDurationMs: durationMs,
+    coins: 0,
+    currentStats: { correct: 0, wrong: 0 },
+    blockedProblemKeys: [],
+    lastScreen: 'practice',
+    algorithmLog: appendAlgorithmLog([], `session_started mode:${profile.settings.mode} examples:${profile.settings.examplesPerSession}`, startAt)
+  };
+}
+
+export function buildSessionStateBeforeStart(profile: ProfileV1, durationMs: number): ProfileV1['session'] {
+  return {
+    ...profile.session,
+    activeProblem: null,
+    typedAnswer: '',
+    problemStartedAt: null,
+    sessionStartAt: null,
+    sessionEndsAt: null,
+    sessionDurationMs: durationMs,
+    coins: 0,
+    currentStats: { correct: 0, wrong: 0 },
+    blockedProblemKeys: [],
+    lastScreen: 'practice',
+    algorithmLog: []
+  };
+}
+
+export function buildProfileForSessionReset(currentProfile: ProfileV1, defaultProfile: ProfileV1): ProfileV1 {
+  return {
+    ...defaultProfile,
+    settings: currentProfile.settings
+  };
 }
