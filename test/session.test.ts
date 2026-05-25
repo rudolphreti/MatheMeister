@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   appendAlgorithmLog,
   buildSessionStateForUserStart,
+  buildSessionStateBeforeStart,
   buildProfileForSessionReset,
   blockProblemForCurrentSession,
   buildNextProblemPool,
@@ -137,8 +138,32 @@ describe('buildSessionStateForUserStart', () => {
   it('starts no-pressure mode without end time', () => {
     const noPressure = { ...baseProfile, settings: { ...baseProfile.settings, mode: 'no-pressure' as const } };
     const started = buildSessionStateForUserStart(noPressure, 1000, 60000);
-    expect(started.sessionStartAt).toBeNull();
+    expect(started.sessionStartAt).toBe(1000);
     expect(started.sessionEndsAt).toBeNull();
+  });
+});
+
+describe('buildSessionStateBeforeStart', () => {
+  it('prepares clean practice screen with explicit start required', () => {
+    const profile: ProfileV1 = {
+      schemaVersion: 1,
+      userName: 'Ada',
+      leaderboard: [],
+      settings: {
+        mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true,
+        subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de',
+        examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: ''
+      },
+      session: { activeProblem: p1, typedAnswer: '7', problemStartedAt: 10, sessionStartAt: 10, sessionEndsAt: 20, sessionDurationMs: 5, coins: 3, currentStats: { correct: 1, wrong: 2 }, blockedProblemKeys: ['1+1'], algorithmLog: ['x'], lastScreen: 'stats' },
+      problemStats: {}
+    };
+
+    const next = buildSessionStateBeforeStart(profile, 60000);
+    expect(next.activeProblem).toBeNull();
+    expect(next.sessionStartAt).toBeNull();
+    expect(next.currentStats).toEqual({ correct: 0, wrong: 0 });
+    expect(next.coins).toBe(0);
+    expect(next.lastScreen).toBe('practice');
   });
 });
 

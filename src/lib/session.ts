@@ -47,7 +47,7 @@ export function buildSessionStateForUserStart(profile: ProfileV1, startAt: numbe
     ...profile.session,
     typedAnswer: '',
     problemStartedAt: null,
-    sessionStartAt: isTimedMode ? startAt : null,
+    sessionStartAt: startAt,
     sessionEndsAt: isTimedMode ? startAt + durationMs : null,
     sessionDurationMs: durationMs,
     coins: 0,
@@ -55,6 +55,23 @@ export function buildSessionStateForUserStart(profile: ProfileV1, startAt: numbe
     blockedProblemKeys: [],
     lastScreen: 'practice',
     algorithmLog: appendAlgorithmLog([], `session_started mode:${profile.settings.mode} examples:${profile.settings.examplesPerSession}`, startAt)
+  };
+}
+
+export function buildSessionStateBeforeStart(profile: ProfileV1, durationMs: number): ProfileV1['session'] {
+  return {
+    ...profile.session,
+    activeProblem: null,
+    typedAnswer: '',
+    problemStartedAt: null,
+    sessionStartAt: null,
+    sessionEndsAt: null,
+    sessionDurationMs: durationMs,
+    coins: 0,
+    currentStats: { correct: 0, wrong: 0 },
+    blockedProblemKeys: [],
+    lastScreen: 'practice',
+    algorithmLog: []
   };
 }
 
