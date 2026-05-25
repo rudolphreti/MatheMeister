@@ -67,5 +67,9 @@ export const t = (_lang: Language) => ({
   donePerfect: '🎉 Glückwunsch! Du hast alle Aufgaben fehlerfrei gelöst!',
   doneFewMistakes: '🎉 Glückwunsch! Du hast alle Aufgaben gelöst, nur {mistakes} Fehler.',
   doneSomeMistakes: '👍 Nicht schlecht! Du hast alle Aufgaben gelöst, aber {mistakes} Fehler gemacht.',
-  doneManyMistakes: '📘 Du hast alle Aufgaben gelöst, aber {mistakes} Fehler gemacht — übe weiter.'
+  doneManyMistakes: '📘 Du hast alle Aufgaben gelöst, aber {mistakes} Fehler gemacht — übe weiter.',
+
+  sessionUnfinishedTasks: '{count} Aufgaben wurden in dieser Sitzung nicht erledigt.',
+  correctionMistakes: 'Korrektur – Aufgaben mit Fehlern: {count}.',
+  correctionUnfinished: 'Korrektur – nicht erledigte Aufgaben: {count}.',
 });

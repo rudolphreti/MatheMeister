@@ -309,13 +309,23 @@ export function App() {
   }, [profile.problemStats, pendingProblemStats]);
 
   const correctionModeCompleted = profile.session.correctionSolvedKeys.length > 0;
+  const unfinishedSessionTasks = Math.max(0, sessionExamples - doneExamples);
+  const correctionModeMistakes = profile.session.correctionQueue.length;
+  const correctionModeUnfinished = Math.max(
+    0,
+    profile.session.correctionQueue.length - profile.session.correctionSolvedKeys.length
+  );
+
   const sessionEndMessage = getSessionEndMessage({
     language: profile.settings.language,
     ended,
     timed,
     remainingMs: remaining,
     mistakes: profile.session.currentStats.wrong,
-    correctionModeCompleted
+    correctionModeCompleted,
+    unfinishedSessionTasks,
+    correctionModeMistakes,
+    correctionModeUnfinished
   });
 
 
