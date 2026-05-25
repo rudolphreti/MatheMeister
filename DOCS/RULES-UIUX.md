@@ -3,6 +3,8 @@
 - Use UI/UX library utilities first.
 - Mobile first.
 - Avoid custom CSS unless necessary.
+- The application MUST use a CSS UI library (e.g. Tailwind) for styling.
+- Styling must follow the chosen library utilities/components; writing CSS from scratch is forbidden.
 - Prefer inline panels over modals.
 - Keep UI minimal and readable; avoid decorative shadows unless they convey state.
 

@@ -81,6 +81,18 @@ export function App() {
     return () => window.clearInterval(id);
   }, []);
   useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key.toLowerCase() !== 'f') return;
+      if (!document.fullscreenElement) {
+        void document.documentElement.requestFullscreen();
+        return;
+      }
+      void document.exitFullscreen();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+  useEffect(() => {
     if (!nameConfirmed || !profile.session.sessionStartAt) return;
     if (!profile.session.activeProblem) {
       setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: generateProblem(p.settings), problemStartedAt: Date.now() } }));
@@ -318,7 +330,7 @@ export function App() {
   };
 
   if (!nameConfirmed) {
-    return <div className="app">
+    return <div className="min-h-screen w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8 text-base sm:text-lg md:text-xl lg:text-2xl overflow-hidden">
       <section>
         <h2>{tr.enterNameTitle}</h2>
         <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmUser(); }} placeholder={tr.namePlaceholder} />
@@ -329,42 +341,42 @@ export function App() {
 
   const sessionStarted = profile.session.sessionStartAt !== null;
 
-  return <div className="app" onKeyDown={(e) => {
+  return <div className="min-h-screen w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8 text-base sm:text-lg md:text-xl lg:text-2xl overflow-hidden" onKeyDown={(e) => {
     if (e.key === 'Enter') submit();
     if (/^[0-9]$/.test(e.key)) pushDigit(e.key);
     if (e.key === 'Backspace') {
       setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }));
     }
   }} tabIndex={0}>
-    <nav className="main-nav">
-      <button className="hamburger" aria-label={tr.menu} onClick={() => setMenuOpen((v) => !v)}>☰</button>
-      {menuOpen && <div className="menu-panel">{(['practice', 'settings', 'stats', 'problem-stats', 'operations-overview'] as const).map((s) => <button key={s} onClick={() => {
+    <nav className="relative mb-3 flex justify-end">
+      <button className="min-w-14 rounded border border-slate-700 px-3 py-2 font-bold" aria-label={tr.menu} onClick={() => setMenuOpen((v) => !v)}>☰</button>
+      {menuOpen && <div className="absolute right-0 top-full z-10 mt-1 flex min-w-56 flex-col rounded border border-slate-800 bg-white p-2">{(['practice', 'settings', 'stats', 'problem-stats', 'operations-overview'] as const).map((s) => <button key={s} onClick={() => {
         setProfile((p) => ({ ...p, session: { ...p.session, lastScreen: s } }));
         setMenuOpen(false);
       }}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : s === 'problem-stats' ? tr.problemStats : s === 'operations-overview' ? tr.operationsOverview : tr.stats}</button>)}<button style={{ background: '#c62828', color: '#fff' }} onClick={resetSession}>Reset</button></div>}
     </nav>
-    {profile.session.lastScreen === 'practice' && <section className="practice">
-      <div className="topbar">
-        <div className="timer">{timed ? `⏱ ${Math.max(0, Math.ceil(remaining / 1000))}s` : '⏱ ∞'}</div>
-        <div className="coins">🪙 {profile.session.coins}</div>
+    {profile.session.lastScreen === 'practice' && <section className="flex h-[calc(100vh-8rem)] flex-col gap-3 overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xl font-bold sm:text-2xl md:text-3xl">{timed ? `⏱ ${Math.max(0, Math.ceil(remaining / 1000))}s` : '⏱ ∞'}</div>
+        <div className="text-xl font-bold sm:text-2xl md:text-3xl">🪙 {profile.session.coins}</div>
         <div className="progress">📘 {tr.sessionProgressLabel}: {doneExamples}/{sessionExamples}</div>
       </div>
-      {!sessionStarted && <button className="restart" style={{ background: '#2e7d32', color: '#fff' }} onClick={startPracticeSession}>{tr.startSession}</button>}
-      {sessionStarted && <><div className="expr">{profile.session.activeProblem?.expression ?? '...'}</div>
-      <div className="input">{profile.session.typedAnswer || '0'}</div></>}
+      {!sessionStarted && <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" style={{ background: '#2e7d32', color: '#fff' }} onClick={startPracticeSession}>{tr.startSession}</button>}
+      {sessionStarted && <><div className="my-2 text-center text-4xl font-bold leading-tight sm:text-5xl md:text-6xl lg:text-7xl">{profile.session.activeProblem?.expression ?? '...'}</div>
+      <div className="min-h-20 rounded border-2 border-black p-3 text-center text-3xl sm:text-4xl md:text-5xl">{profile.session.typedAnswer || '0'}</div></>}
 
-      <div className="feedback">{!sessionStarted ? ' ' : ended ? sessionEndMessage : feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' '}</div>
+      <div className="min-h-10 text-center text-xl font-bold sm:text-2xl md:text-3xl">{!sessionStarted ? ' ' : ended ? sessionEndMessage : feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' '}</div>
 
       {ended && <div className="timeup">
         <p>{timed && remaining <= 0 ? tr.timeUpQuestion : tr.nextSessionQuestion}</p>
-        <button className="restart" onClick={restartSession}>{tr.restartSession}</button>
-        <button className="restart" style={{ background: '#f9a825', color: '#000' }} onClick={() => {
+        <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" onClick={restartSession}>{tr.restartSession}</button>
+        <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" style={{ background: '#f9a825', color: '#000' }} onClick={() => {
           const correctionQueue = buildCorrectionQueue(profile.session.sessionAttempts);
           const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
           const nextProblem = correctionQueue.length > 0 ? combinedPoolMap.get(correctionQueue[0]) ?? null : null;
           setProfile((p) => ({ ...p, session: { ...p.session, correctionModeActive: correctionQueue.length > 0, correctionQueue, correctionSolvedKeys: [], activeProblem: nextProblem, typedAnswer: '', problemStartedAt: Date.now(), sessionEndsAt: null } }));
         }}>{tr.correctionMode}</button>
-        <button className="restart" onClick={() => { const content = profile.session.algorithmLog.join('\n'); const blob = new Blob([content], { type: 'text/plain;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `session-algorithm-log-${Date.now()}.txt`; a.click(); }}>⬇️ Algorithmus-Log</button>
+        <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" onClick={() => { const content = profile.session.algorithmLog.join('\n'); const blob = new Blob([content], { type: 'text/plain;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `session-algorithm-log-${Date.now()}.txt`; a.click(); }}>⬇️ Algorithmus-Log</button>
         <ul>
           {buildCorrectionQueue(profile.session.sessionAttempts).map((key) => {
             const problem = [...pool, ...customProblems].find((p) => p.key === key);
@@ -373,13 +385,13 @@ export function App() {
         </ul>
       </div>}
 
-      {sessionStarted && <div className="pad">
-        <div className="digits-row">
+      {sessionStarted && <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+        <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button key={d} disabled={ended} onClick={() => pushDigit(d)}>{d}</button>)}
         </div>
-        <button className="delete" disabled={ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>⌫ {tr.del}</button>
-        <button className="next" disabled={ended || profile.session.correctionModeActive} onClick={skipToNextProblem}>→ {tr.next}</button>
-        <button className="enter" disabled={ended} onClick={submit}>↵ {tr.ok}</button>
+        <button className="rounded bg-red-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>⌫ {tr.del}</button>
+        <button className="rounded bg-blue-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended || profile.session.correctionModeActive} onClick={skipToNextProblem}>→ {tr.next}</button>
+        <button className="rounded bg-green-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended} onClick={submit}>↵ {tr.ok}</button>
       </div>}
     </section>}
     {profile.session.lastScreen === 'settings' && <section>
@@ -467,9 +479,9 @@ export function App() {
 
     {profile.session.lastScreen === 'operations-overview' && <section>
       <h3>{tr.operationsOverview}</h3>
-      {[{ key: '+', title: tr.additionUpToTwenty }, { key: '-', title: tr.subtractionUpToTwenty }].map((operation) => <div key={operation.key} className="overview-block">
+      {[{ key: '+', title: tr.additionUpToTwenty }, { key: '-', title: tr.subtractionUpToTwenty }].map((operation) => <div key={operation.key} className="my-3">
         <h4>{operation.title}</h4>
-        <table className="overview-table">
+        <table className="w-full border-collapse text-xs sm:text-sm md:text-base">
           <thead>
             <tr>
               <th> </th>
@@ -482,7 +494,7 @@ export function App() {
               {Array.from({ length: 21 }, (_, right) => {
                 const result = operation.key === '+' ? left + right : left - right;
                 if (operation.key === '-' && result < 0) {
-                  return <td key={`empty-${operation.key}-${left}-${right}`} className="overview-cell overview-empty">—</td>;
+                  return <td key={`empty-${operation.key}-${left}-${right}`} className="border border-slate-500 bg-slate-100 p-1 text-center font-bold text-slate-500">—</td>;
                 }
                 const operationKey = `${operation.key}:${left}:${right}`;
                 const stats = operationStats.totals[operationKey] ?? { attempts: 0, correct: 0, wrong: 0 };
@@ -490,7 +502,7 @@ export function App() {
                 const bg = hasAttempts ? toGrayShade(Math.max(0.2, stats.attempts / operationStats.maxAttempts)) : '#fff';
                 const color = stats.wrong > 0 ? toErrorRedShade(stats.wrong / operationStats.maxWrong) : '#111';
                 const title = `${left} ${operation.key} ${right} = ${result} • ${tr.statsTooltipAttempts}: ${stats.attempts} • ${tr.statsTooltipCorrect}: ${stats.correct} • ${tr.statsTooltipWrong}: ${stats.wrong}`;
-                return <td key={`result-${operation.key}-${left}-${right}`} className={`overview-cell ${hasAttempts ? 'overview-hit' : ''}`} style={{ background: bg, color }} title={title}>{result}</td>;
+                return <td key={`result-${operation.key}-${left}-${right}`} className={`border border-slate-500 p-1 text-center font-bold ${hasAttempts ? 'ring-2 ring-black' : ''}`} style={{ background: bg, color }} title={title}>{result}</td>;
               })}
             </tr>)}
           </tbody>
