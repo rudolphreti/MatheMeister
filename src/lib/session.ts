@@ -57,3 +57,10 @@ export function buildSessionStateForUserStart(profile: ProfileV1, startAt: numbe
     algorithmLog: appendAlgorithmLog([], `session_started mode:${profile.settings.mode} examples:${profile.settings.examplesPerSession}`, startAt)
   };
 }
+
+export function buildProfileForSessionReset(currentProfile: ProfileV1, defaultProfile: ProfileV1): ProfileV1 {
+  return {
+    ...defaultProfile,
+    settings: currentProfile.settings
+  };
+}

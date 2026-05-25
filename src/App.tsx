@@ -5,7 +5,7 @@ import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadPr
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
-import { appendAlgorithmLog, blockProblemForCurrentSession, buildNextProblemPool, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, moveSkippedProblemToQueueEnd } from './lib/session';
+import { appendAlgorithmLog, blockProblemForCurrentSession, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, moveSkippedProblemToQueueEnd } from './lib/session';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], lastScreen: 'practice' }, problemStats: {} });
@@ -81,10 +81,11 @@ export function App() {
     return () => window.clearInterval(id);
   }, []);
   useEffect(() => {
+    if (!nameConfirmed) return;
     if (!profile.session.activeProblem) {
       setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: generateProblem(p.settings), problemStartedAt: Date.now() } }));
     }
-  }, [profile.session.activeProblem, profile.settings]);
+  }, [nameConfirmed, profile.session.activeProblem, profile.settings]);
 
   useEffect(() => {
     const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
@@ -160,14 +161,13 @@ export function App() {
   }
 
   function resetSession() {
-    const next = mkDefault();
-    const settingsToKeep = profile.settings;
+    const next = buildProfileForSessionReset(profile, mkDefault());
     setFeedback(null);
     setImportMessage('');
     setMenuOpen(false);
-    setNameInput(profile.userName);
+    setNameInput(loadLastUserName());
     setNameConfirmed(false);
-    setProfile({ ...next, settings: settingsToKeep });
+    setProfile(next);
   }
 
   function submit() {

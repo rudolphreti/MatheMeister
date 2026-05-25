@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   appendAlgorithmLog,
   buildSessionStateForUserStart,
+  buildProfileForSessionReset,
   blockProblemForCurrentSession,
   buildNextProblemPool,
   ensureActiveProblemIsAllowed,
@@ -138,5 +139,38 @@ describe('buildSessionStateForUserStart', () => {
     const started = buildSessionStateForUserStart(noPressure, 1000, 60000);
     expect(started.sessionStartAt).toBeNull();
     expect(started.sessionEndsAt).toBeNull();
+  });
+});
+
+describe('buildProfileForSessionReset', () => {
+  it('returns startup-like profile with preserved settings only', () => {
+    const defaultProfile: ProfileV1 = {
+      schemaVersion: 1,
+      userName: '',
+      leaderboard: [],
+      settings: {
+        mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true,
+        subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de',
+        examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: ''
+      },
+      session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], lastScreen: 'practice' },
+      problemStats: {}
+    };
+    const current: ProfileV1 = {
+      ...defaultProfile,
+      userName: 'Ada',
+      leaderboard: [{ userName: 'Ada', coins: 99, completedAt: 100 }],
+      settings: { ...defaultProfile.settings, mode: 'no-pressure', examplesPerSession: 25 },
+      session: { ...defaultProfile.session, coins: 10, lastScreen: 'stats', activeProblem: p1 },
+      problemStats: { '1+1': { key: '1+1', expression: '1+1', attempts: 1, correct: 1, wrong: 0, averageResponseTimeMs: 1000, difficultyScore: 0, errorDebt: 0, lastSeenAt: 1, lastSeenTurn: 1, excluded: false } }
+    };
+
+    const resetProfile = buildProfileForSessionReset(current, defaultProfile);
+    expect(resetProfile.userName).toBe('');
+    expect(resetProfile.leaderboard).toEqual([]);
+    expect(resetProfile.session.activeProblem).toBeNull();
+    expect(resetProfile.session.coins).toBe(0);
+    expect(resetProfile.settings.mode).toBe('no-pressure');
+    expect(resetProfile.settings.examplesPerSession).toBe(25);
   });
 });
