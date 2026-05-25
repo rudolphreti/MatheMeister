@@ -41,3 +41,20 @@ export function maybeAppendLeaderboardEntry(profile: ProfileV1, previouslyEnded:
     ])
   };
 }
+
+
+export function buildSessionStartState(profile: ProfileV1, startAt: number, activeProblem: ProfileV1['session']['activeProblem']) {
+  const durationMs = profile.settings.sessionMinutes * 60000;
+  return {
+    ...profile.session,
+    activeProblem,
+    problemStartedAt: startAt,
+    typedAnswer: '',
+    sessionStartAt: profile.settings.mode === 'timed' ? startAt : null,
+    sessionEndsAt: profile.settings.mode === 'timed' ? startAt + durationMs : null,
+    sessionDurationMs: durationMs,
+    coins: 0,
+    currentStats: { correct: 0, wrong: 0 },
+    blockedProblemKeys: []
+  };
+}

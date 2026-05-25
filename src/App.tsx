@@ -5,7 +5,7 @@ import { clearAllAppData, exportProfile, importProfile, listStoredUserNames, loa
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
-import { maybeAppendLeaderboardEntry, mergeProblemStats, parseBinaryOperation, sortLeaderboard, sortStats } from './lib/appModel';
+import { buildSessionStartState, maybeAppendLeaderboardEntry, mergeProblemStats, parseBinaryOperation, sortLeaderboard, sortStats } from './lib/appModel';
 import { appendAlgorithmLog, blockProblemForCurrentSession, buildNextProblemPool, ensureActiveProblemIsAllowed, moveSkippedProblemToQueueEnd } from './lib/session';
 import { resolveProfileForSelectedUser } from './lib/userProfiles';
 
@@ -120,28 +120,17 @@ export function App() {
 
   function startSession() {
     const startAt = Date.now();
-    const durationMs = profile.settings.sessionMinutes * 60000;
     setSessionStarted(true);
     setProfile((p) => ({
       ...p,
       session: {
-        ...p.session,
-        activeProblem: generateProblem(p.settings),
-        problemStartedAt: Date.now(),
-        typedAnswer: '',
-        sessionStartAt: p.settings.mode === 'timed' ? startAt : null,
-        sessionEndsAt: p.settings.mode === 'timed' ? startAt + durationMs : null,
-        sessionDurationMs: durationMs,
-        currentStats: { correct: 0, wrong: 0 },
-        blockedProblemKeys: [],
+        ...buildSessionStartState(p, startAt, generateProblem(p.settings)),
         algorithmLog: appendAlgorithmLog(p.session.algorithmLog, `session_started mode:${p.settings.mode} examples:${p.settings.examplesPerSession}`)
       }
     }));
   }
 
   function restartSession() {
-    const durationMs = profile.settings.sessionMinutes * 60000;
-    const nextProblem = generateProblem(profile.settings);
     const shouldSaveScore = profile.userName.trim().length > 0 && (profile.session.currentStats.correct + profile.session.currentStats.wrong > 0);
     setFeedback(null);
     setProfile((p) => ({
@@ -149,15 +138,9 @@ export function App() {
       problemStats: mergeProblemStats(p.problemStats, pendingProblemStats),
       leaderboard: shouldSaveScore ? sortLeaderboard([...p.leaderboard, { userName: p.userName.trim(), coins: p.session.coins, completedAt: Date.now() }]) : p.leaderboard,
       session: {
-        ...p.session,
-        activeProblem: nextProblem,
-        problemStartedAt: Date.now(),
-        typedAnswer: '',
+        ...buildSessionStartState(p, Date.now(), generateProblem(p.settings)),
         sessionStartAt: null,
         sessionEndsAt: null,
-        sessionDurationMs: durationMs,
-        currentStats: { correct: 0, wrong: 0 },
-        blockedProblemKeys: [],
         algorithmLog: []
       }
     }));
