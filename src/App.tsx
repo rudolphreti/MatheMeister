@@ -73,6 +73,10 @@ export function App() {
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
   const customProblems = useMemo(() => parseCustomProblems(profile.settings), [profile.settings]);
+  const allProblems = useMemo(() => {
+    const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
+    return Array.from(combinedPoolMap.values());
+  }, [customProblems, pool]);
 
   useEffect(() => saveProfile(profile), [profile]);
   useEffect(() => {
@@ -102,8 +106,7 @@ export function App() {
   }, [nameConfirmed, profile.session.activeProblem, profile.session.sessionStartAt, profile.settings]);
 
   useEffect(() => {
-    const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
-    const allowedProblems = Array.from(combinedPoolMap.values());
+    const allowedProblems = allProblems;
     if (allowedProblems.length === 0) {
       setProblemQueue([]);
       return;
@@ -115,13 +118,12 @@ export function App() {
       const missing = allowedProblems.map((problem) => problem.key).filter((key) => !kept.includes(key));
       return [...kept, ...missing];
     });
-  }, [customProblems, pool]);
+  }, [allProblems]);
 
 
   useEffect(() => {
     if (!profile.session.activeProblem) return;
-    const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
-    const allowedProblems = Array.from(combinedPoolMap.values());
+    const allowedProblems = allProblems;
     if (ensureActiveProblemIsAllowed(profile.session.activeProblem, allowedProblems)) return;
     const nextProblem = pickWeightedProblem(
       allowedProblems,
@@ -130,7 +132,7 @@ export function App() {
     );
     setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: nextProblem, typedAnswer: '', problemStartedAt: Date.now() } }));
     setFeedback(null);
-  }, [customProblems, pendingProblemStats, pool, profile.problemStats, profile.session.activeProblem]);
+  }, [allProblems, pendingProblemStats, profile.problemStats, profile.session.activeProblem]);
 
   const timed = profile.settings.mode === 'timed';
   const remaining = profile.settings.mode === 'timed' && profile.session.sessionEndsAt
@@ -139,7 +141,9 @@ export function App() {
   const doneExamples = profile.session.currentStats.correct + profile.session.currentStats.wrong;
   const sessionExamples = profile.settings.examplesPerSession;
   const endedByExamples = doneExamples >= sessionExamples;
-  const ended = ((timed && remaining <= 0) || endedByExamples) && !profile.session.correctionModeActive;
+  const endedByUniquePoolExhausted = profile.session.blockedProblemKeys.length >= allProblems.length && allProblems.length > 0;
+  const ended = ((timed && remaining <= 0) || endedByExamples || endedByUniquePoolExhausted) && !profile.session.correctionModeActive;
+  const displayRemainingMs = ended ? 0 : remaining;
 
   useEffect(() => {
     if (!ended) return;
@@ -223,10 +227,8 @@ export function App() {
     if (coins > 0) playCoinSound(profile.settings.soundEnabled);
     const sessionStats = mergeProblemStats(profile.problemStats, pendingProblemStats);
     const stat = updateProblemStat(sessionStats[profile.session.activeProblem.key], profile.session.activeProblem, correct, ms, Date.now());
-    const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
-    const allProblems = Array.from(combinedPoolMap.values());
     const nextBlockedKeys = correct
-      ? profile.session.blockedProblemKeys
+      ? blockProblemForCurrentSession(profile.session.blockedProblemKeys, profile.session.activeProblem.key)
       : blockProblemForCurrentSession(profile.session.blockedProblemKeys, profile.session.activeProblem.key);
     const nextPool = buildNextProblemPool(allProblems, nextBlockedKeys);
     const nextStats = { ...sessionStats, [stat.key]: stat };
@@ -309,7 +311,8 @@ export function App() {
   }, [profile.problemStats, pendingProblemStats]);
 
   const correctionModeCompleted = profile.session.correctionSolvedKeys.length > 0;
-  const showCorrectionAction = shouldShowCorrectionAction(profile.session.correctionQueue, profile.session.correctionSolvedKeys);
+  const correctionQueueFromAttempts = buildCorrectionQueue(profile.session.sessionAttempts);
+  const showCorrectionAction = shouldShowCorrectionAction(correctionQueueFromAttempts, profile.session.correctionSolvedKeys);
   const unfinishedSessionTasks = Math.max(0, sessionExamples - doneExamples);
   const correctionModeMistakes = profile.session.correctionQueue.length;
   const correctionModeUnfinished = Math.max(
@@ -321,7 +324,7 @@ export function App() {
     language: profile.settings.language,
     ended,
     timed,
-    remainingMs: remaining,
+    remainingMs: displayRemainingMs,
     mistakes: profile.session.currentStats.wrong,
     correctionModeCompleted,
     unfinishedSessionTasks,
@@ -395,9 +398,9 @@ export function App() {
         setMenuOpen(false);
       }}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : s === 'problem-stats' ? tr.problemStats : s === 'operations-overview' ? tr.operationsOverview : tr.stats}</button>)}<button style={{ background: '#c62828', color: '#fff' }} onClick={resetSession}>Reset</button></div>}
     </nav>
-    {profile.session.lastScreen === 'practice' && <section className="flex h-[calc(100vh-8rem)] flex-col gap-3 overflow-hidden">
+    {profile.session.lastScreen === 'practice' && <section className="flex h-[calc(100vh-8rem)] flex-col gap-3 overflow-auto">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-xl font-bold sm:text-2xl md:text-3xl">{timed ? `⏱ ${Math.max(0, Math.ceil(remaining / 1000))}s` : '⏱ ∞'}</div>
+        <div className="text-xl font-bold sm:text-2xl md:text-3xl">{timed ? `⏱ ${Math.max(0, Math.ceil(displayRemainingMs / 1000))}s` : '⏱ ∞'}</div>
         <div className="text-xl font-bold sm:text-2xl md:text-3xl">🪙 {profile.session.coins}</div>
         <div className="progress">📘 {tr.sessionProgressLabel}: {doneExamples}/{sessionExamples}</div>
       </div>
@@ -412,15 +415,14 @@ export function App() {
         <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" onClick={restartSession}>{tr.restartSession}</button>
         {showCorrectionAction && <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" style={{ background: '#f9a825', color: '#000' }} onClick={() => {
           const correctionQueue = buildCorrectionQueue(profile.session.sessionAttempts);
-          const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
-          const nextProblem = correctionQueue.length > 0 ? combinedPoolMap.get(correctionQueue[0]) ?? null : null;
+          const nextProblem = correctionQueue.length > 0 ? allProblems.find((problem) => problem.key === correctionQueue[0]) ?? null : null;
           setProfile((p) => ({ ...p, session: { ...p.session, correctionModeActive: correctionQueue.length > 0, correctionQueue, correctionSolvedKeys: [], activeProblem: nextProblem, typedAnswer: '', problemStartedAt: Date.now(), sessionEndsAt: null } }));
         }}>{tr.correctionMode}</button>}
         {!showCorrectionAction && correctionModeCompleted && <p className="rounded border border-green-300 bg-green-50 px-3 py-2 font-semibold text-green-800">{tr.correctionDoneNotice}</p>}
         <button className="rounded bg-slate-200 px-3 py-2 font-bold text-slate-700" onClick={() => { const content = profile.session.algorithmLog.join('\n'); const blob = new Blob([content], { type: 'text/plain;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `session-algorithm-log-${Date.now()}.txt`; a.click(); }}>⬇️ Algorithmus-Log</button>
         <ul>
-          {buildCorrectionQueue(profile.session.sessionAttempts).map((key) => {
-            const problem = [...pool, ...customProblems].find((p) => p.key === key);
+          {correctionQueueFromAttempts.map((key) => {
+            const problem = allProblems.find((p) => p.key === key);
             return <li key={key}>{problem?.expression ?? key}</li>;
           })}
         </ul>
