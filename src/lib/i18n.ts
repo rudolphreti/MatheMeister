@@ -3,7 +3,7 @@ import { Language } from './types';
 export const t = (_lang: Language) => ({
   practice: 'Üben',
   settings: 'Einstellungen',
-  stats: 'Statistiken',
+  stats: 'Ranking',
   problemStats: 'Aufgabenstatistik',
   operationsOverview: 'Übersicht über mögliche mathematische Operationen',
   additionUpToTwenty: 'Alle möglichen Additionen bis 20',

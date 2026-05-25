@@ -1,6 +1,17 @@
 import { Problem } from './types';
 import { ProfileV1 } from './types';
 
+interface FinalizeSessionResultsArgs {
+  profileProblemStats: Record<string, ProfileV1['problemStats'][string]>;
+  pendingProblemStats: Record<string, ProfileV1['problemStats'][string]>;
+  leaderboard: ProfileV1['leaderboard'];
+  userName: string;
+  sessionCoins: number;
+  sessionAttemptsCount: number;
+  alreadyFinalized: boolean;
+  now?: number;
+}
+
 export function moveSkippedProblemToQueueEnd(queue: string[], activeProblemKey: string): string[] {
   const matchingKeys = queue.filter((key) => key === activeProblemKey);
   if (matchingKeys.length !== 1) return queue;
@@ -105,5 +116,26 @@ export function buildProfileForSessionReset(currentProfile: ProfileV1, defaultPr
   return {
     ...defaultProfile,
     settings: currentProfile.settings
+  };
+}
+
+export function finalizeSessionResults(args: FinalizeSessionResultsArgs): {
+  problemStats: Record<string, ProfileV1['problemStats'][string]>;
+  leaderboard: ProfileV1['leaderboard'];
+  finalized: boolean;
+} {
+  const problemStats = { ...args.profileProblemStats, ...args.pendingProblemStats };
+  const hasAttempts = args.sessionAttemptsCount > 0;
+  const hasUserName = args.userName.trim().length > 0;
+  const shouldAppendLeaderboard = hasAttempts && hasUserName && !args.alreadyFinalized;
+  const entryTime = args.now ?? Date.now();
+  const nextLeaderboard = shouldAppendLeaderboard
+    ? [{ userName: args.userName.trim(), coins: args.sessionCoins, completedAt: entryTime }, ...args.leaderboard]
+    : args.leaderboard;
+  const sortedLeaderboard = nextLeaderboard.slice().sort((a, b) => b.coins - a.coins || b.completedAt - a.completedAt);
+  return {
+    problemStats,
+    leaderboard: sortedLeaderboard,
+    finalized: args.alreadyFinalized || shouldAppendLeaderboard
   };
 }

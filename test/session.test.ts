@@ -9,7 +9,8 @@ import {
   blockProblemForCurrentSession,
   buildNextProblemPool,
   ensureActiveProblemIsAllowed,
-  moveSkippedProblemToQueueEnd
+  moveSkippedProblemToQueueEnd,
+  finalizeSessionResults
 } from '../src/lib/session';
 import { Problem } from '../src/lib/types';
 import { ProfileV1 } from '../src/lib/types';
@@ -218,5 +219,47 @@ describe('buildProfileForSessionReset', () => {
     expect(resetProfile.session.coins).toBe(0);
     expect(resetProfile.settings.mode).toBe('no-pressure');
     expect(resetProfile.settings.examplesPerSession).toBe(25);
+  });
+});
+
+describe('finalizeSessionResults', () => {
+  const statA = { key: '1+1', expression: '1+1', attempts: 1, correct: 1, wrong: 0, averageResponseTimeMs: 1000, difficultyScore: 0.1, errorDebt: 0, lastSeenAt: 1, lastSeenTurn: 1, excluded: false };
+  const statB = { key: '2+2', expression: '2+2', attempts: 2, correct: 1, wrong: 1, averageResponseTimeMs: 2000, difficultyScore: 0.2, errorDebt: 1, lastSeenAt: 2, lastSeenTurn: 2, excluded: false };
+
+  it('persists pending stats and appends ranking row once when session has attempts', () => {
+    const result = finalizeSessionResults({
+      profileProblemStats: { '1+1': statA },
+      pendingProblemStats: { '2+2': statB },
+      leaderboard: [{ userName: 'Ada', coins: 1, completedAt: 10 }],
+      userName: 'Ada',
+      sessionCoins: 5,
+      sessionAttemptsCount: 3,
+      alreadyFinalized: false,
+      now: 20
+    });
+
+    expect(result.problemStats).toEqual({ '1+1': statA, '2+2': statB });
+    expect(result.finalized).toBe(true);
+    expect(result.leaderboard).toEqual([
+      { userName: 'Ada', coins: 5, completedAt: 20 },
+      { userName: 'Ada', coins: 1, completedAt: 10 }
+    ]);
+  });
+
+  it('does not append another ranking row when already finalized', () => {
+    const result = finalizeSessionResults({
+      profileProblemStats: {},
+      pendingProblemStats: { '2+2': statB },
+      leaderboard: [{ userName: 'Ada', coins: 5, completedAt: 20 }],
+      userName: 'Ada',
+      sessionCoins: 5,
+      sessionAttemptsCount: 3,
+      alreadyFinalized: true,
+      now: 30
+    });
+
+    expect(result.leaderboard).toEqual([{ userName: 'Ada', coins: 5, completedAt: 20 }]);
+    expect(result.problemStats).toEqual({ '2+2': statB });
+    expect(result.finalized).toBe(true);
   });
 });

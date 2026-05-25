@@ -5,7 +5,7 @@ import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadPr
 import { playCoinSound, playDigitSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
-import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, getCorrectionProgress, moveSkippedProblemToQueueEnd } from './lib/session';
+import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, finalizeSessionResults, getCorrectionProgress, moveSkippedProblemToQueueEnd } from './lib/session';
 import { getSessionEndMessage } from './lib/sessionEndMessage';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
@@ -68,6 +68,7 @@ export function App() {
   const [nameConfirmed, setNameConfirmed] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pendingProblemStats, setPendingProblemStats] = useState<Record<string, ProblemStat>>({});
+  const [sessionFinalized, setSessionFinalized] = useState(false);
   const [problemQueue, setProblemQueue] = useState<string[]>([]);
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
@@ -140,6 +141,23 @@ export function App() {
   const endedByExamples = doneExamples >= sessionExamples;
   const ended = ((timed && remaining <= 0) || endedByExamples) && !profile.session.correctionModeActive;
 
+  useEffect(() => {
+    if (!ended) return;
+    if (sessionFinalized && Object.keys(pendingProblemStats).length === 0) return;
+    const result = finalizeSessionResults({
+      profileProblemStats: profile.problemStats,
+      pendingProblemStats,
+      leaderboard: profile.leaderboard,
+      userName: profile.userName,
+      sessionCoins: profile.session.coins,
+      sessionAttemptsCount: profile.session.sessionAttempts.length,
+      alreadyFinalized: sessionFinalized
+    });
+    if (!sessionFinalized && result.finalized) setSessionFinalized(true);
+    setProfile((p) => ({ ...p, problemStats: result.problemStats, leaderboard: result.leaderboard }));
+    if (Object.keys(pendingProblemStats).length > 0) setPendingProblemStats({});
+  }, [ended, pendingProblemStats, profile.leaderboard, profile.problemStats, profile.session.coins, profile.session.sessionAttempts.length, profile.userName, sessionFinalized]);
+
 
   function pushDigit(digit: string) {
     if (ended) return;
@@ -152,12 +170,21 @@ export function App() {
   function restartSession() {
     const durationMs = profile.settings.sessionMinutes * 60000;
     const nextProblem = generateProblem(profile.settings);
-    const shouldSaveScore = profile.userName.trim().length > 0 && (profile.session.currentStats.correct + profile.session.currentStats.wrong > 0);
+    const sessionAttemptCount = profile.session.currentStats.correct + profile.session.currentStats.wrong;
+    const finalized = finalizeSessionResults({
+      profileProblemStats: profile.problemStats,
+      pendingProblemStats,
+      leaderboard: profile.leaderboard,
+      userName: profile.userName,
+      sessionCoins: profile.session.coins,
+      sessionAttemptsCount: sessionAttemptCount,
+      alreadyFinalized: sessionFinalized
+    });
     setFeedback(null);
     setProfile((p) => ({
       ...p,
-      problemStats: mergeProblemStats(p.problemStats, pendingProblemStats),
-      leaderboard: shouldSaveScore ? sortLeaderboard([...p.leaderboard, { userName: p.userName.trim(), coins: p.session.coins, completedAt: Date.now() }]) : p.leaderboard,
+      problemStats: finalized.problemStats,
+      leaderboard: finalized.leaderboard,
       session: {
         ...p.session,
         activeProblem: nextProblem,
@@ -172,6 +199,7 @@ export function App() {
       }
     }));
     setPendingProblemStats({});
+    setSessionFinalized(false);
   }
 
   function resetSession() {
@@ -181,6 +209,7 @@ export function App() {
     setMenuOpen(false);
     setNameInput(loadLastUserName());
     setNameConfirmed(false);
+    setSessionFinalized(false);
     setProfile(next);
   }
 
@@ -322,6 +351,7 @@ export function App() {
     const durationMs = profile.settings.sessionMinutes * 60000;
     setFeedback(null);
     setPendingProblemStats({});
+    setSessionFinalized(false);
     setProfile((p) => ({ ...p, session: buildSessionStateForUserStart(p, startAt, durationMs) }));
   };
 
