@@ -390,9 +390,9 @@ export function App() {
 
       {sessionStarted && <div className="grid grid-cols-1 gap-2">
         <div className="grid grid-cols-10 gap-2">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button key={d} disabled={ended} onClick={() => pushDigit(d)}>{d}</button>)}
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button className="min-h-14 rounded border border-slate-400 px-2 py-3 text-lg font-semibold sm:min-h-16 sm:text-xl md:min-h-20 md:text-2xl" key={d} disabled={ended} onClick={() => pushDigit(d)}>{d}</button>)}
         </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
           <button className="rounded bg-red-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>⌫ {tr.del}</button>
           <button className="rounded bg-blue-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended || profile.session.correctionModeActive} onClick={skipToNextProblem}>→ {tr.next}</button>
           <button className="rounded bg-green-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended} onClick={submit}>↵ {tr.ok}</button>
