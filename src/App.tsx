@@ -6,6 +6,7 @@ import { playCoinSound, playDigitSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, getCorrectionProgress, moveSkippedProblemToQueueEnd } from './lib/session';
+import { getSessionEndMessage } from './lib/sessionEndMessage';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], sessionAttempts: [], correctionQueue: [], correctionSolvedKeys: [], correctionModeActive: false, lastScreen: 'practice' }, problemStats: {} });
@@ -278,22 +279,16 @@ export function App() {
     return { totals, maxAttempts, maxWrong };
   }, [profile.problemStats, pendingProblemStats]);
 
-  function getSessionEndMessage(): string {
-    if (!ended) return '';
-    const mistakes = profile.session.currentStats.wrong;
-    if (timed && remaining <= 0) {
-      if (mistakes === 0) return tr.timeUpPerfect;
-      if (mistakes <= 2) return tr.timeUpFewMistakes.replace('{mistakes}', String(mistakes));
-      if (mistakes <= 5) return tr.timeUpSomeMistakes.replace('{mistakes}', String(mistakes));
-      return tr.timeUpManyMistakes.replace('{mistakes}', String(mistakes));
-    }
-    if (mistakes === 0) return tr.donePerfect;
-    if (mistakes <= 2) return tr.doneFewMistakes.replace('{mistakes}', String(mistakes));
-    if (mistakes <= 5) return tr.doneSomeMistakes.replace('{mistakes}', String(mistakes));
-    return tr.doneManyMistakes.replace('{mistakes}', String(mistakes));
-  }
+  const correctionModeCompleted = profile.session.correctionSolvedKeys.length > 0;
+  const sessionEndMessage = getSessionEndMessage({
+    language: profile.settings.language,
+    ended,
+    timed,
+    remainingMs: remaining,
+    mistakes: profile.session.currentStats.wrong,
+    correctionModeCompleted
+  });
 
-  const sessionEndMessage = getSessionEndMessage();
 
   const handleConfirmUser = () => {
     const nextName = nameInput.trim();
@@ -351,7 +346,8 @@ export function App() {
       setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }));
     }
   }} tabIndex={0}>
-    <nav className="relative mb-3 flex justify-end">
+    <nav className="relative mb-3 flex items-center justify-between">
+      <button className="min-w-14 rounded border border-slate-700 px-3 py-2 font-bold" aria-label="Vollbild" onClick={() => { if (!document.fullscreenElement) { void document.documentElement.requestFullscreen(); return; } void document.exitFullscreen(); }}>⛶</button>
       <button className="min-w-14 rounded border border-slate-700 px-3 py-2 font-bold" aria-label={tr.menu} onClick={() => setMenuOpen((v) => !v)}>☰</button>
       {menuOpen && <div className="absolute right-0 top-full z-10 mt-1 flex min-w-56 flex-col rounded border border-slate-800 bg-white p-2">{(['practice', 'settings', 'stats', 'problem-stats', 'operations-overview'] as const).map((s) => <button key={s} onClick={() => {
         setProfile((p) => ({ ...p, session: { ...p.session, lastScreen: s } }));
@@ -399,46 +395,56 @@ export function App() {
         </div>
       </div>}
     </section>}
-    {profile.session.lastScreen === 'settings' && <section className="max-h-[calc(100vh-8rem)] overflow-auto pr-1">
-      <label>{tr.modeLabel} <select value={profile.settings.mode} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, mode: e.target.value as Settings['mode'] } }))}><option value="timed">{tr.modeTimed}</option><option value="no-pressure">{tr.modeNoPressure}</option></select></label>
-      <label>{tr.minutesLabel} <select value={profile.settings.sessionMinutes} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, sessionMinutes: Number(e.target.value) as Settings['sessionMinutes'] } }))}>{[1, 3, 5, 10, 15].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
-      <label>{tr.maxLabel} <select value={profile.settings.max} onChange={(e) => setProfile((p) => {
-        const nextMax = Number(e.target.value) as Settings['max'];
-        const nextMinuendMin = Math.min(nextMax, p.settings.subtractionMinuendMin);
-        const nextMinuendMax = Math.max(nextMinuendMin, Math.min(nextMax, p.settings.subtractionMinuendMax));
-        return { ...p, settings: { ...p.settings, max: nextMax, subtractionMinuendMin: nextMinuendMin, subtractionMinuendMax: nextMinuendMax } };
-      })}>{[5, 10, 20].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
-      <fieldset>
-        <legend>{tr.operationsLegend}</legend>
-        <label><input type="checkbox" checked={profile.settings.additionEnabled} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, additionEnabled: e.target.checked } }))} /> {tr.additionLabel}</label>
-        <label><input type="checkbox" checked={profile.settings.subtractionEnabled} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, subtractionEnabled: e.target.checked } }))} /> {tr.subtractionLabel}</label>
-        {profile.settings.subtractionEnabled && <label>{tr.subtractionMinuendMinLabel} <input type="number" min={profile.settings.min} max={profile.settings.subtractionMinuendMax} step={1} value={profile.settings.subtractionMinuendMin} onChange={(e) => {
-          const value = Number(e.target.value);
-          if (!Number.isFinite(value)) return;
-          setProfile((p) => ({ ...p, settings: { ...p.settings, subtractionMinuendMin: Math.max(p.settings.min, Math.min(p.settings.subtractionMinuendMax, Math.floor(value))) } }));
-        }} /></label>}
-        {profile.settings.subtractionEnabled && <label>{tr.subtractionMinuendMaxLabel} <input type="number" min={profile.settings.subtractionMinuendMin} max={profile.settings.max} step={1} value={profile.settings.subtractionMinuendMax} onChange={(e) => {
-          const value = Number(e.target.value);
-          if (!Number.isFinite(value)) return;
-          setProfile((p) => ({ ...p, settings: { ...p.settings, subtractionMinuendMax: Math.max(p.settings.subtractionMinuendMin, Math.min(p.settings.max, Math.floor(value))) } }));
-        }} /></label>}
+    {profile.session.lastScreen === 'settings' && <section className="max-h-[calc(100vh-8rem)] space-y-4 overflow-auto pr-1">
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <h3 className="mb-3 text-lg font-bold">{tr.settings}</h3>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <label className="flex flex-col gap-1"><span className="text-sm font-semibold text-slate-700">{tr.modeLabel}</span><select className="h-11 rounded-lg border border-slate-300 px-3" value={profile.settings.mode} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, mode: e.target.value as Settings['mode'] } }))}><option value="timed">{tr.modeTimed}</option><option value="no-pressure">{tr.modeNoPressure}</option></select></label>
+          <label className="flex flex-col gap-1"><span className="text-sm font-semibold text-slate-700">{tr.minutesLabel}</span><select className="h-11 rounded-lg border border-slate-300 px-3" value={profile.settings.sessionMinutes} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, sessionMinutes: Number(e.target.value) as Settings['sessionMinutes'] } }))}>{[1, 3, 5, 10, 15].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
+          <label className="flex flex-col gap-1"><span className="text-sm font-semibold text-slate-700">{tr.maxLabel}</span><select className="h-11 rounded-lg border border-slate-300 px-3" value={profile.settings.max} onChange={(e) => setProfile((p) => {
+            const nextMax = Number(e.target.value) as Settings['max'];
+            const nextMinuendMin = Math.min(nextMax, p.settings.subtractionMinuendMin);
+            const nextMinuendMax = Math.max(nextMinuendMin, Math.min(nextMax, p.settings.subtractionMinuendMax));
+            return { ...p, settings: { ...p.settings, max: nextMax, subtractionMinuendMin: nextMinuendMin, subtractionMinuendMax: nextMinuendMax } };
+          })}>{[5, 10, 20].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
+          <label className="flex flex-col gap-1"><span className="text-sm font-semibold text-slate-700">{tr.termsLabel}</span><select className="h-11 rounded-lg border border-slate-300 px-3" value={profile.settings.terms} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, terms: Number(e.target.value) as Settings['terms'] } }))}>{[2, 3, 4, 5].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
+        </div>
+      </div>
+
+      <fieldset className="rounded-xl border border-slate-200 bg-white p-4">
+        <legend className="px-1 text-sm font-semibold text-slate-700">{tr.operationsLegend}</legend>
+        <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label className="flex items-center gap-2"><input type="checkbox" checked={profile.settings.additionEnabled} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, additionEnabled: e.target.checked } }))} /> {tr.additionLabel}</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={profile.settings.subtractionEnabled} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, subtractionEnabled: e.target.checked } }))} /> {tr.subtractionLabel}</label>
+        </div>
+        {profile.settings.subtractionEnabled && <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label className="flex flex-col gap-1"><span className="text-sm text-slate-700">{tr.subtractionMinuendMinLabel}</span><input className="h-11 rounded-lg border border-slate-300 px-3" type="number" min={profile.settings.min} max={profile.settings.subtractionMinuendMax} step={1} value={profile.settings.subtractionMinuendMin} onChange={(e) => {
+            const value = Number(e.target.value);
+            if (!Number.isFinite(value)) return;
+            setProfile((p) => ({ ...p, settings: { ...p.settings, subtractionMinuendMin: Math.max(p.settings.min, Math.min(p.settings.subtractionMinuendMax, Math.floor(value))) } }));
+          }} /></label>
+          <label className="flex flex-col gap-1"><span className="text-sm text-slate-700">{tr.subtractionMinuendMaxLabel}</span><input className="h-11 rounded-lg border border-slate-300 px-3" type="number" min={profile.settings.subtractionMinuendMin} max={profile.settings.max} step={1} value={profile.settings.subtractionMinuendMax} onChange={(e) => {
+            const value = Number(e.target.value);
+            if (!Number.isFinite(value)) return;
+            setProfile((p) => ({ ...p, settings: { ...p.settings, subtractionMinuendMax: Math.max(p.settings.subtractionMinuendMin, Math.min(p.settings.max, Math.floor(value))) } }));
+          }} /></label>
+        </div>}
       </fieldset>
-      <label>{tr.termsLabel} <select value={profile.settings.terms} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, terms: Number(e.target.value) as Settings['terms'] } }))}>{[2, 3, 4, 5].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
-      <label>{tr.examplesPerSessionLabel} <input type="number" min={1} max={200} step={1} value={profile.settings.examplesPerSession} onChange={(e) => {
-        const value = Number(e.target.value);
-        if (!Number.isFinite(value)) return;
-        setProfile((p) => ({ ...p, settings: { ...p.settings, examplesPerSession: Math.max(1, Math.min(200, Math.floor(value))) } }));
-      }} /></label>
-      <fieldset>
-        <legend>{tr.exclusionsTitle}</legend>
-        <label><input type="checkbox" checked={profile.settings.excludeResultZero} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, excludeResultZero: e.target.checked } }))} /> {tr.excludeResultZero}</label>
-        <label><input type="checkbox" checked={profile.settings.excludePlusMinusZero} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, excludePlusMinusZero: e.target.checked } }))} /> {tr.excludePlusMinusZero}</label>
-        <label><input type="checkbox" checked={profile.settings.excludePlusMinusOne} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, excludePlusMinusOne: e.target.checked } }))} /> {tr.excludePlusMinusOne}</label>
+
+      <fieldset className="rounded-xl border border-slate-200 bg-white p-4">
+        <legend className="px-1 text-sm font-semibold text-slate-700">{tr.exclusionsTitle}</legend>
+        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+          <label className="flex items-center gap-2"><input type="checkbox" checked={profile.settings.excludeResultZero} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, excludeResultZero: e.target.checked } }))} /> {tr.excludeResultZero}</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={profile.settings.excludePlusMinusZero} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, excludePlusMinusZero: e.target.checked } }))} /> {tr.excludePlusMinusZero}</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={profile.settings.excludePlusMinusOne} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, excludePlusMinusOne: e.target.checked } }))} /> {tr.excludePlusMinusOne}</label>
+        </div>
       </fieldset>
-      <fieldset>
-        <legend>{tr.customTasksTitle}</legend>
-        <label>{tr.customTasksHint}
+
+      <fieldset className="rounded-xl border border-slate-200 bg-white p-4">
+        <legend className="px-1 text-sm font-semibold text-slate-700">{tr.customTasksTitle}</legend>
+        <label className="mt-2 flex flex-col gap-2"><span className="text-sm text-slate-700">{tr.customTasksHint}</span>
           <textarea
+            className="min-h-44 rounded-lg border border-slate-300 p-3"
             value={profile.settings.customTasksText}
             onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, customTasksText: e.target.value } }))}
             rows={8}
@@ -447,9 +453,17 @@ export function App() {
         </label>
       </fieldset>
 
-      <fieldset>
-        <legend>{tr.dangerZoneTitle}</legend>
-        <button style={{ background: '#b71c1c', color: '#fff' }} onClick={() => {
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <label className="flex max-w-xs flex-col gap-1"><span className="text-sm font-semibold text-slate-700">{tr.examplesPerSessionLabel}</span><input className="h-11 rounded-lg border border-slate-300 px-3" type="number" min={1} max={200} step={1} value={profile.settings.examplesPerSession} onChange={(e) => {
+          const value = Number(e.target.value);
+          if (!Number.isFinite(value)) return;
+          setProfile((p) => ({ ...p, settings: { ...p.settings, examplesPerSession: Math.max(1, Math.min(200, Math.floor(value))) } }));
+        }} /></label>
+      </div>
+
+      <fieldset className="rounded-xl border border-red-300 bg-red-50 p-4">
+        <legend className="px-1 text-sm font-semibold text-red-800">{tr.dangerZoneTitle}</legend>
+        <button className="mt-2 rounded bg-red-700 px-3 py-2 font-bold text-white" onClick={() => {
           if (!window.confirm(tr.clearAllDataConfirm)) return;
           clearAllAppData();
           setPendingProblemStats({});
@@ -462,21 +476,26 @@ export function App() {
           setProfile(mkDefault());
         }}>{tr.clearAllDataButton}</button>
       </fieldset>
-      <button onClick={() => { const blob = new Blob([exportProfile(profile)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'math-profile.json'; a.click(); }}>{tr.exportJson}</button>
-      <input type="file" accept="application/json" onChange={async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        try {
-          const text = await file.text();
-          const imported = importProfile(text);
-          setProfile(imported);
-          setImportMessage('✅ JSON imported');
-        } catch {
-          setImportMessage('❌ Invalid JSON profile');
-        }
-        e.currentTarget.value = '';
-      }} />
-      <div>{importMessage}</div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <button className="rounded border border-slate-400 px-3 py-2 font-semibold" onClick={() => { const blob = new Blob([exportProfile(profile)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'math-profile.json'; a.click(); }}>{tr.exportJson}</button>
+          <input className="block" type="file" accept="application/json" onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+              const text = await file.text();
+              const imported = importProfile(text);
+              setProfile(imported);
+              setImportMessage('✅ JSON imported');
+            } catch {
+              setImportMessage('❌ Invalid JSON profile');
+            }
+            e.currentTarget.value = '';
+          }} />
+        </div>
+        <div className="mt-2 text-sm">{importMessage}</div>
+      </div>
     </section>}
     {profile.session.lastScreen === 'stats' && <section className="max-h-[calc(100vh-8rem)] overflow-auto pr-1"><div>{tr.correct}: {profile.session.currentStats.correct} · {tr.wrong}: {profile.session.currentStats.wrong}</div><table><thead><tr><th>{tr.leaderboardPlayer}</th><th>{tr.leaderboardCoins}</th><th>{tr.leaderboardDate}</th></tr></thead><tbody>{profile.leaderboard.map((entry, idx) => <tr key={`${entry.userName}-${entry.completedAt}-${idx}`}><td>{entry.userName}</td><td>{entry.coins}</td><td>{new Date(entry.completedAt).toLocaleString()}</td></tr>)}</tbody></table></section>}
     {profile.session.lastScreen === 'problem-stats' && <section className="max-h-[calc(100vh-8rem)] overflow-auto pr-1"><table><thead><tr><th>{tr.statsProblem}</th><th>{tr.statsCorrect}</th><th>{tr.statsWrong}</th><th>{tr.statsAvgMs}</th><th>{tr.statsDifficulty}</th></tr></thead>
