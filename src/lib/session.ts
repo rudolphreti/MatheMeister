@@ -40,6 +40,14 @@ export function getCorrectionProgress(correctionQueue: string[], solvedKeys: str
 }
 
 
+
+
+export function shouldShowCorrectionAction(correctionQueue: string[], solvedKeys: string[]): boolean {
+  const total = correctionQueue.length;
+  if (total === 0) return false;
+  return solvedKeys.length < total;
+}
+
 export function ensureActiveProblemIsAllowed(
   activeProblem: Problem | null,
   allowedProblems: Problem[]

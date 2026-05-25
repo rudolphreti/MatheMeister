@@ -72,4 +72,5 @@ export const t = (_lang: Language) => ({
   sessionUnfinishedTasks: '{count} Aufgaben wurden in dieser Sitzung nicht erledigt.',
   correctionMistakes: 'Korrektur – Aufgaben mit Fehlern: {count}.',
   correctionUnfinished: 'Korrektur – nicht erledigte Aufgaben: {count}.',
+  correctionDoneNotice: '✅ Korrektur abgeschlossen. Gute Arbeit!',
 });

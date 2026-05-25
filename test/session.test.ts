@@ -10,7 +10,8 @@ import {
   buildNextProblemPool,
   ensureActiveProblemIsAllowed,
   moveSkippedProblemToQueueEnd,
-  finalizeSessionResults
+  finalizeSessionResults,
+  shouldShowCorrectionAction
 } from '../src/lib/session';
 import { Problem } from '../src/lib/types';
 import { ProfileV1 } from '../src/lib/types';
@@ -65,6 +66,23 @@ describe('correction queue helpers', () => {
     expect(getCorrectionProgress(['1+1', '2+2', '3+3'], ['1+1'])).toEqual({ solved: 1, total: 3, remaining: 2 });
   });
 });
+
+
+
+describe('shouldShowCorrectionAction', () => {
+  it('shows correction action when there are unsolved correction tasks', () => {
+    expect(shouldShowCorrectionAction(['1+1', '2+2'], ['1+1'])).toBe(true);
+  });
+
+  it('hides correction action when correction queue is empty', () => {
+    expect(shouldShowCorrectionAction([], [])).toBe(false);
+  });
+
+  it('hides correction action when all correction tasks are solved', () => {
+    expect(shouldShowCorrectionAction(['1+1', '2+2'], ['1+1', '2+2'])).toBe(false);
+  });
+});
+
 
 describe('session algorithm helpers', () => {
   it('blocks wrong problem only once and keeps previous blocks', () => {

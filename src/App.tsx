@@ -5,7 +5,7 @@ import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadPr
 import { playCoinSound, playDigitSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
-import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, finalizeSessionResults, getCorrectionProgress, moveSkippedProblemToQueueEnd } from './lib/session';
+import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, finalizeSessionResults, getCorrectionProgress, moveSkippedProblemToQueueEnd, shouldShowCorrectionAction } from './lib/session';
 import { getSessionEndMessage } from './lib/sessionEndMessage';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
@@ -309,6 +309,7 @@ export function App() {
   }, [profile.problemStats, pendingProblemStats]);
 
   const correctionModeCompleted = profile.session.correctionSolvedKeys.length > 0;
+  const showCorrectionAction = shouldShowCorrectionAction(profile.session.correctionQueue, profile.session.correctionSolvedKeys);
   const unfinishedSessionTasks = Math.max(0, sessionExamples - doneExamples);
   const correctionModeMistakes = profile.session.correctionQueue.length;
   const correctionModeUnfinished = Math.max(
@@ -409,13 +410,14 @@ export function App() {
       {ended && <div className="timeup">
         <p>{timed && remaining <= 0 ? tr.timeUpQuestion : tr.nextSessionQuestion}</p>
         <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" onClick={restartSession}>{tr.restartSession}</button>
-        <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" style={{ background: '#f9a825', color: '#000' }} onClick={() => {
+        {showCorrectionAction && <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" style={{ background: '#f9a825', color: '#000' }} onClick={() => {
           const correctionQueue = buildCorrectionQueue(profile.session.sessionAttempts);
           const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
           const nextProblem = correctionQueue.length > 0 ? combinedPoolMap.get(correctionQueue[0]) ?? null : null;
           setProfile((p) => ({ ...p, session: { ...p.session, correctionModeActive: correctionQueue.length > 0, correctionQueue, correctionSolvedKeys: [], activeProblem: nextProblem, typedAnswer: '', problemStartedAt: Date.now(), sessionEndsAt: null } }));
-        }}>{tr.correctionMode}</button>
-        <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" onClick={() => { const content = profile.session.algorithmLog.join('\n'); const blob = new Blob([content], { type: 'text/plain;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `session-algorithm-log-${Date.now()}.txt`; a.click(); }}>⬇️ Algorithmus-Log</button>
+        }}>{tr.correctionMode}</button>}
+        {!showCorrectionAction && correctionModeCompleted && <p className="rounded border border-green-300 bg-green-50 px-3 py-2 font-semibold text-green-800">{tr.correctionDoneNotice}</p>}
+        <button className="rounded bg-slate-200 px-3 py-2 font-bold text-slate-700" onClick={() => { const content = profile.session.algorithmLog.join('\n'); const blob = new Blob([content], { type: 'text/plain;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `session-algorithm-log-${Date.now()}.txt`; a.click(); }}>⬇️ Algorithmus-Log</button>
         <ul>
           {buildCorrectionQueue(profile.session.sessionAttempts).map((key) => {
             const problem = [...pool, ...customProblems].find((p) => p.key === key);
