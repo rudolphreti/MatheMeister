@@ -5,6 +5,7 @@ import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadPr
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
+import { maybeAppendLeaderboardEntry, mergeProblemStats, parseBinaryOperation, sortLeaderboard, sortStats } from './lib/appModel';
 import { appendAlgorithmLog, blockProblemForCurrentSession, buildNextProblemPool, ensureActiveProblemIsAllowed, moveSkippedProblemToQueueEnd } from './lib/session';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
@@ -16,21 +17,6 @@ function calculateRemainingMs(profile: ProfileV1): number {
   return Math.max(0, profile.session.sessionEndsAt - Date.now());
 }
 
-
-function sortLeaderboard(rows: ProfileV1['leaderboard']) {
-  return rows.slice().sort((a, b) => b.coins - a.coins || b.completedAt - a.completedAt);
-}
-
-function mergeProblemStats(base: Record<string, ProblemStat>, pending: Record<string, ProblemStat>): Record<string, ProblemStat> {
-  return { ...base, ...pending };
-}
-
-function sortStats(stats: Record<string, ProblemStat>): ProblemStat[] {
-  return Object.values(stats).sort((a, b) => b.difficultyScore - a.difficultyScore
-    || b.wrong - a.wrong
-    || b.averageResponseTimeMs - a.averageResponseTimeMs
-    || a.key.localeCompare(b.key));
-}
 
 
 function toGrayShade(ratio: number): string {
@@ -46,17 +32,6 @@ function toErrorRedShade(ratio: number): string {
 }
 
 
-function parseBinaryOperation(expression: string): { left: number; right: number; operator: '+' | '-'; result: number } | null {
-  const match = expression.match(/^\s*(\d+)\s*([+-])\s*(\d+)(?:\s*=\s*(-?\d+))?\s*$/);
-  if (!match) return null;
-  const left = Number(match[1]);
-  const operator = match[2] as '+' | '-';
-  const right = Number(match[3]);
-  const computed = operator === '+' ? left + right : left - right;
-  const result = match[4] !== undefined ? Number(match[4]) : computed;
-  if (!Number.isFinite(left) || !Number.isFinite(right) || !Number.isFinite(result)) return null;
-  return { left, right, operator, result };
-}
 
 export function App() {
   const [profile, setProfile] = useState<ProfileV1>(() => loadProfile() ?? mkDefault());
@@ -125,6 +100,11 @@ export function App() {
   const sessionExamples = profile.settings.examplesPerSession;
   const endedByExamples = doneExamples >= sessionExamples;
   const ended = (timed && remaining <= 0) || endedByExamples;
+
+
+  useEffect(() => {
+    setProfile((p) => maybeAppendLeaderboardEntry(p, !ended, ended));
+  }, [ended]);
 
 
   function pushDigit(digit: string) {
