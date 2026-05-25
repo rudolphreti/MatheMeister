@@ -40,6 +40,7 @@ function normalizeProfile(profile: ProfileV1): ProfileV1 {
     leaderboard: (profile.leaderboard ?? []).slice().sort((a, b) => b.coins - a.coins || b.completedAt - a.completedAt),
     settings: {
       ...profile.settings,
+      subtractionMinuendMax: Math.max(profile.settings.min, Math.min(profile.settings.max, Math.floor(profile.settings.subtractionMinuendMax ?? 20))),
       examplesPerSession: profile.settings.examplesPerSession ?? 10,
       excludeResultZero: profile.settings.excludeResultZero ?? false,
       excludePlusMinusZero: profile.settings.excludePlusMinusZero ?? false,
@@ -77,6 +78,7 @@ function isSettings(x: unknown): x is ProfileV1['settings'] {
     && [5, 10, 20].includes(y.max)
     && typeof y.additionEnabled === 'boolean'
     && typeof y.subtractionEnabled === 'boolean'
+    && (y.subtractionMinuendMax === undefined || (Number.isInteger(y.subtractionMinuendMax) && y.subtractionMinuendMax >= y.min && y.subtractionMinuendMax <= y.max))
     && [2, 3, 4, 5].includes(y.terms)
     && typeof y.soundEnabled === 'boolean'
     && y.language === 'de'
