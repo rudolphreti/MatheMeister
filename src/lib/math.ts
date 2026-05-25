@@ -73,6 +73,8 @@ export function buildProblemPool(settings: Settings): Problem[] {
 
   const min = settings.min;
   const max = settings.max;
+  const subtractionMinuendMin = Math.max(min, Math.min(max, Math.floor(settings.subtractionMinuendMin)));
+  const subtractionMinuendMax = Math.max(subtractionMinuendMin, Math.min(max, Math.floor(settings.subtractionMinuendMax)));
   const terms = settings.terms;
   const problems: Problem[] = [];
 
@@ -87,6 +89,7 @@ export function buildProblemPool(settings: Settings): Problem[] {
           let acc = nums[0];
           if (acc < min || acc > max) return;
           for (let j = 0; j < opCount; j++) {
+            if (opsArr[j] === '-' && (acc < subtractionMinuendMin || acc > subtractionMinuendMax)) return;
             acc = opsArr[j] === '+' ? acc + nums[j + 1] : acc - nums[j + 1];
             if (acc < min || acc > max) return;
           }
@@ -119,6 +122,10 @@ export function buildProblemPool(settings: Settings): Problem[] {
       let acc = nums[0];
       let ok = acc >= min && acc <= max;
       for (let j = 0; j < opCount && ok; j++) {
+        if (opsArr[j] === '-' && (acc < subtractionMinuendMin || acc > subtractionMinuendMax)) {
+          ok = false;
+          break;
+        }
         acc = opsArr[j] === '+' ? acc + nums[j + 1] : acc - nums[j + 1];
         ok = acc >= min && acc <= max;
       }

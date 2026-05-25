@@ -34,12 +34,16 @@ export function loadProfile(): ProfileV1 | null {
 }
 
 function normalizeProfile(profile: ProfileV1): ProfileV1 {
+  const normalizedSubtractionMinuendMin = Math.max(profile.settings.min, Math.min(profile.settings.max, Math.floor(profile.settings.subtractionMinuendMin ?? profile.settings.min ?? 0)));
+  const normalizedSubtractionMinuendMax = Math.max(normalizedSubtractionMinuendMin, Math.min(profile.settings.max, Math.floor(profile.settings.subtractionMinuendMax ?? 20)));
   return {
     ...profile,
     userName: profile.userName ?? '',
     leaderboard: (profile.leaderboard ?? []).slice().sort((a, b) => b.coins - a.coins || b.completedAt - a.completedAt),
     settings: {
       ...profile.settings,
+      subtractionMinuendMin: normalizedSubtractionMinuendMin,
+      subtractionMinuendMax: normalizedSubtractionMinuendMax,
       examplesPerSession: profile.settings.examplesPerSession ?? 10,
       excludeResultZero: profile.settings.excludeResultZero ?? false,
       excludePlusMinusZero: profile.settings.excludePlusMinusZero ?? false,
@@ -77,6 +81,9 @@ function isSettings(x: unknown): x is ProfileV1['settings'] {
     && [5, 10, 20].includes(y.max)
     && typeof y.additionEnabled === 'boolean'
     && typeof y.subtractionEnabled === 'boolean'
+    && (y.subtractionMinuendMin === undefined || (Number.isInteger(y.subtractionMinuendMin) && y.subtractionMinuendMin >= y.min && y.subtractionMinuendMin <= y.max))
+    && (y.subtractionMinuendMax === undefined || (Number.isInteger(y.subtractionMinuendMax) && y.subtractionMinuendMax >= y.min && y.subtractionMinuendMax <= y.max))
+    && (y.subtractionMinuendMin === undefined || y.subtractionMinuendMax === undefined || y.subtractionMinuendMin <= y.subtractionMinuendMax)
     && [2, 3, 4, 5].includes(y.terms)
     && typeof y.soundEnabled === 'boolean'
     && y.language === 'de'
