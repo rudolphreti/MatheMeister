@@ -20,19 +20,22 @@ export function ensureActiveProblemIsAllowed(
 }
 
 
-export function blockProblemForCurrentSession(blockedProblemKeys: string[], problemKey: string): string[] {
-  if (!problemKey) return blockedProblemKeys;
-  if (blockedProblemKeys.includes(problemKey)) return blockedProblemKeys;
-  return [...blockedProblemKeys, problemKey];
+export function blockProblemForCurrentSession(blockedProblemKeys: string[] | null | undefined, problemKey: string): string[] {
+  const safeBlockedKeys = Array.isArray(blockedProblemKeys) ? blockedProblemKeys : [];
+  if (!problemKey) return safeBlockedKeys;
+  if (safeBlockedKeys.includes(problemKey)) return safeBlockedKeys;
+  return [...safeBlockedKeys, problemKey];
 }
 
-export function buildNextProblemPool(allProblems: Problem[], blockedProblemKeys: string[]): Problem[] {
-  const blocked = new Set(blockedProblemKeys);
+export function buildNextProblemPool(allProblems: Problem[], blockedProblemKeys: string[] | null | undefined): Problem[] {
+  const safeBlockedKeys = Array.isArray(blockedProblemKeys) ? blockedProblemKeys : [];
+  const blocked = new Set(safeBlockedKeys);
   const filtered = allProblems.filter((problem) => !blocked.has(problem.key));
   return filtered.length > 0 ? filtered : allProblems;
 }
 
-export function appendAlgorithmLog(currentLog: string[], message: string, now: number = Date.now()): string[] {
+export function appendAlgorithmLog(currentLog: string[] | null | undefined, message: string, now: number = Date.now()): string[] {
+  const safeLog = Array.isArray(currentLog) ? currentLog : [];
   const stamp = new Date(now).toISOString();
-  return [...currentLog, `[${stamp}] ${message}`];
+  return [...safeLog, `[${stamp}] ${message}`];
 }

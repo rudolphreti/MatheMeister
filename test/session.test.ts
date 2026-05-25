@@ -66,3 +66,17 @@ describe('session algorithm helpers', () => {
     expect(next[0]).toContain('2023');
   });
 });
+
+
+
+describe('session backward compatibility', () => {
+  it('appendAlgorithmLog handles missing legacy log array', () => {
+    const result = appendAlgorithmLog(undefined as unknown as string[], 'event', 1700000000000);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toContain('event');
+  });
+
+  it('blockProblemForCurrentSession handles missing legacy blocked array', () => {
+    expect(blockProblemForCurrentSession(undefined as unknown as string[], '1+1')).toEqual(['1+1']);
+  });
+});
