@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   appendAlgorithmLog,
+  buildSessionStateForUserStart,
   blockProblemForCurrentSession,
   buildNextProblemPool,
   ensureActiveProblemIsAllowed,
   moveSkippedProblemToQueueEnd
 } from '../src/lib/session';
 import { Problem } from '../src/lib/types';
+import { ProfileV1 } from '../src/lib/types';
 
 const p1: Problem = { key: '1+1', expression: '1 + 1', answer: 2 };
 const p2: Problem = { key: '2+2', expression: '2 + 2', answer: 4 };
@@ -78,5 +80,63 @@ describe('session backward compatibility', () => {
 
   it('blockProblemForCurrentSession handles missing legacy blocked array', () => {
     expect(blockProblemForCurrentSession(undefined as unknown as string[], '1+1')).toEqual(['1+1']);
+  });
+});
+
+describe('buildSessionStateForUserStart', () => {
+  const baseProfile: ProfileV1 = {
+    schemaVersion: 1,
+    userName: 'Ada',
+    leaderboard: [],
+    settings: {
+      mode: 'timed',
+      sessionMinutes: 10,
+      min: 0,
+      max: 20,
+      additionEnabled: true,
+      subtractionEnabled: true,
+      subtractionMinuendMin: 0,
+      subtractionMinuendMax: 20,
+      terms: 2,
+      soundEnabled: true,
+      language: 'de',
+      examplesPerSession: 12,
+      excludeResultZero: false,
+      excludePlusMinusZero: false,
+      excludePlusMinusOne: false,
+      customTasksText: ''
+    },
+    session: {
+      activeProblem: p1,
+      typedAnswer: '42',
+      problemStartedAt: 1,
+      sessionStartAt: 1,
+      sessionEndsAt: 2,
+      sessionDurationMs: 3,
+      coins: 7,
+      currentStats: { correct: 4, wrong: 5 },
+      blockedProblemKeys: ['1+1'],
+      algorithmLog: ['legacy'],
+      lastScreen: 'stats'
+    },
+    problemStats: {}
+  };
+
+  it('resets active session counters and returns to practice screen for timed mode', () => {
+    const started = buildSessionStateForUserStart(baseProfile, 1000, 60000);
+    expect(started.currentStats).toEqual({ correct: 0, wrong: 0 });
+    expect(started.coins).toBe(0);
+    expect(started.blockedProblemKeys).toEqual([]);
+    expect(started.lastScreen).toBe('practice');
+    expect(started.sessionStartAt).toBe(1000);
+    expect(started.sessionEndsAt).toBe(61000);
+    expect(started.algorithmLog).toHaveLength(1);
+  });
+
+  it('starts no-pressure mode without end time', () => {
+    const noPressure = { ...baseProfile, settings: { ...baseProfile.settings, mode: 'no-pressure' as const } };
+    const started = buildSessionStateForUserStart(noPressure, 1000, 60000);
+    expect(started.sessionStartAt).toBeNull();
+    expect(started.sessionEndsAt).toBeNull();
   });
 });

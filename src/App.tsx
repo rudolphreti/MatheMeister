@@ -5,7 +5,7 @@ import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadPr
 import { playCoinSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
-import { appendAlgorithmLog, blockProblemForCurrentSession, buildNextProblemPool, ensureActiveProblemIsAllowed, moveSkippedProblemToQueueEnd } from './lib/session';
+import { appendAlgorithmLog, blockProblemForCurrentSession, buildNextProblemPool, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, moveSkippedProblemToQueueEnd } from './lib/session';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], lastScreen: 'practice' }, problemStats: {} });
@@ -275,13 +275,7 @@ export function App() {
       setProfile((p) => ({
         ...existingProfile,
         userName: nextName,
-        session: {
-          ...existingProfile.session,
-          sessionStartAt: existingProfile.settings.mode === 'timed' ? startAt : null,
-          sessionEndsAt: existingProfile.settings.mode === 'timed' ? startAt + durationMs : null,
-          sessionDurationMs: durationMs,
-          algorithmLog: appendAlgorithmLog(existingProfile.session.algorithmLog, `session_started mode:${existingProfile.settings.mode} examples:${existingProfile.settings.examplesPerSession}`)
-        }
+        session: buildSessionStateForUserStart(existingProfile, startAt, durationMs)
       }));
       saveLastUserName(nextName);
       setNameConfirmed(true);
@@ -291,13 +285,7 @@ export function App() {
     setProfile((p) => ({
       ...p,
       userName: nextName,
-      session: {
-        ...p.session,
-        sessionStartAt: p.settings.mode === 'timed' ? startAt : null,
-        sessionEndsAt: p.settings.mode === 'timed' ? startAt + durationMs : null,
-        sessionDurationMs: durationMs,
-        algorithmLog: appendAlgorithmLog(p.session.algorithmLog, `session_started mode:${p.settings.mode} examples:${p.settings.examplesPerSession}`)
-      }
+      session: buildSessionStateForUserStart({ ...p, userName: nextName }, startAt, durationMs)
     }));
     saveLastUserName(nextName);
     setNameConfirmed(true);
