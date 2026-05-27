@@ -64,7 +64,8 @@ export function App() {
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const [importMessage, setImportMessage] = useState<string>('');
   const [now, setNow] = useState(() => Date.now());
-  const [nameInput, setNameInput] = useState(() => loadLastUserName());
+  const [nameInput, setNameInput] = useState('');
+  const [selectedUserName, setSelectedUserName] = useState(() => loadLastUserName());
   const knownUserNames = useMemo(() => loadUserNames(), [profile]);
   const [nameConfirmed, setNameConfirmed] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -81,7 +82,7 @@ export function App() {
 
   useEffect(() => saveProfile(profile), [profile]);
   useEffect(() => {
-    setNameInput(profile.userName || loadLastUserName());
+    setSelectedUserName(profile.userName || loadLastUserName());
   }, [profile.userName]);
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 250);
@@ -212,7 +213,8 @@ export function App() {
     setFeedback(null);
     setImportMessage('');
     setMenuOpen(false);
-    setNameInput(loadLastUserName());
+    setNameInput('');
+    setSelectedUserName(loadLastUserName());
     setNameConfirmed(false);
     setSessionFinalized(false);
     setProfile(next);
@@ -335,7 +337,9 @@ export function App() {
 
 
   const handleConfirmUser = () => {
-    const nextName = nameInput.trim();
+    const typedName = nameInput.trim();
+    const selectedName = selectedUserName.trim();
+    const nextName = typedName || selectedName;
     if (!nextName) return;
 
     const durationMs = profile.settings.sessionMinutes * 60000;
@@ -375,7 +379,7 @@ export function App() {
       <section className="mx-auto mt-8 flex w-full max-w-xl flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:mt-14 sm:p-6">
         <h2 className="text-2xl font-bold sm:text-3xl">{tr.enterNameTitle}</h2>
         <div className="flex flex-col gap-3">
-          {knownUserNames.length > 0 && <select className="h-12 w-full rounded-lg border border-slate-300 px-3 text-xl sm:text-2xl" value={knownUserNames.includes(nameInput.trim()) ? nameInput.trim() : ''} onChange={(e) => setNameInput(e.target.value)}>
+          {knownUserNames.length > 0 && <select className="h-12 w-full rounded-lg border border-slate-300 px-3 text-xl sm:text-2xl" value={knownUserNames.includes(selectedUserName.trim()) ? selectedUserName.trim() : ''} onChange={(e) => { setSelectedUserName(e.target.value); setNameInput(''); }}>
             <option value="">{tr.selectExistingUser}</option>
             {knownUserNames.map((userName) => <option key={userName} value={userName}>{userName}</option>)}
           </select>}
