@@ -55,6 +55,7 @@ export const t = (_lang: Language) => ({
   correctionMode: 'Korrektur',
   enterNameTitle: 'Bitte gib deinen Namen ein',
   namePlaceholder: 'Name',
+  selectExistingUser: 'Vorhandenen Namen auswählen',
   startSession: 'Start',
   leaderboardPlayer: 'Spieler',
   leaderboardCoins: 'Münzen',

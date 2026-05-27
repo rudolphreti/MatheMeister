@@ -53,6 +53,14 @@ export function loadProfileForUser(userName: string): ProfileV1 | null {
   return normalizeProfile(profile);
 }
 
+
+export function loadUserNames(): string[] {
+  return Object.keys(loadAllUserProfiles())
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0)
+    .sort((a, b) => a.localeCompare(b));
+}
+
 function loadAllUserProfiles(): Record<string, ProfileV1> {
   const storage = getStorage();
   if (!storage) return {};

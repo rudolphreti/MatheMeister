@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clearAllAppData, importProfile, exportProfile, loadLastUserName, loadProfileForUser, saveLastUserName, saveProfileForUser } from '../src/lib/storage';
+import { clearAllAppData, importProfile, exportProfile, loadLastUserName, loadProfileForUser, loadUserNames, saveLastUserName, saveProfileForUser } from '../src/lib/storage';
 
 const profile = { schemaVersion:1, userName:'Anna', leaderboard:[], settings:{ mode:'timed', sessionMinutes:10, min:0, max:20, additionEnabled:true, subtractionEnabled:true, subtractionMinuendMin:0, subtractionMinuendMax:20, terms:2, soundEnabled:true, language:'de', examplesPerSession:10, excludeResultZero:false, excludePlusMinusZero:false, excludePlusMinusOne:false, customTasksText:"" }, session:{ activeProblem:null, typedAnswer:'', problemStartedAt:null, sessionStartAt:null, sessionEndsAt:null, sessionDurationMs:0, coins:0, currentStats:{correct:0,wrong:0}, lastScreen:'practice' }, problemStats:{} };
 
@@ -51,6 +51,7 @@ describe('storage', () => {
     saveProfileForUser('Anna', anna as never);
     saveProfileForUser('Max', max as never);
 
+    expect(loadUserNames()).toEqual(['Anna', 'Max']);
     expect(loadProfileForUser('Anna')?.problemStats['1+1']?.attempts).toBe(3);
     expect(loadProfileForUser('Anna')?.problemStats['2+2']).toBeUndefined();
     expect(loadProfileForUser('Max')?.problemStats['2+2']?.attempts).toBe(5);
@@ -58,8 +59,28 @@ describe('storage', () => {
 
     (globalThis as { localStorage?: Storage }).localStorage = previousStorage;
   });
-});
 
+  it('returns sorted user names from user profile storage', () => {
+    const memory = new Map<string, string>();
+    const previousStorage = (globalThis as { localStorage?: Storage }).localStorage;
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        memory.set(key, value);
+      },
+      removeItem: (key: string) => {
+        memory.delete(key);
+      },
+      clear: () => memory.clear(),
+      key: (index: number) => Array.from(memory.keys())[index] ?? null,
+      get length() { return memory.size; }
+    } as Storage;
+
+    memory.set('math-practice-app:user-profiles:v1', JSON.stringify({ Zofia: profile, Adam: profile }));
+    expect(loadUserNames()).toEqual(['Adam', 'Zofia']);
+
+    (globalThis as { localStorage?: Storage }).localStorage = previousStorage;
+  });
 
   it('clears all application keys', () => {
     const memory = new Map<string, string>();
@@ -91,3 +112,4 @@ describe('storage', () => {
 
     (globalThis as { localStorage?: Storage }).localStorage = previousStorage;
   });
+});

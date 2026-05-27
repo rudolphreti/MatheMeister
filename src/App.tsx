@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildProblemPool, generateProblem, parseCustomProblems } from './lib/math';
 import { coinReward, explainCoinReward, explainSelectionDecision, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
-import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, saveLastUserName, saveProfile } from './lib/storage';
+import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, loadUserNames, saveLastUserName, saveProfile } from './lib/storage';
 import { playCoinSound, playDigitSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
@@ -65,6 +65,7 @@ export function App() {
   const [importMessage, setImportMessage] = useState<string>('');
   const [now, setNow] = useState(() => Date.now());
   const [nameInput, setNameInput] = useState(() => loadLastUserName());
+  const knownUserNames = useMemo(() => loadUserNames(), [profile]);
   const [nameConfirmed, setNameConfirmed] = useState<boolean>(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pendingProblemStats, setPendingProblemStats] = useState<Record<string, ProblemStat>>({});
@@ -373,9 +374,15 @@ export function App() {
     return <div className="min-h-screen w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8 text-base sm:text-lg md:text-xl lg:text-2xl">
       <section className="mx-auto mt-8 flex w-full max-w-xl flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:mt-14 sm:p-6">
         <h2 className="text-2xl font-bold sm:text-3xl">{tr.enterNameTitle}</h2>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <input className="h-12 w-full rounded-lg border border-slate-300 px-3 text-xl sm:text-2xl" value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmUser(); }} placeholder={tr.namePlaceholder} />
-          <button className="h-12 rounded-lg bg-blue-700 px-5 font-bold text-white sm:min-w-24" onClick={handleConfirmUser}>{tr.ok}</button>
+        <div className="flex flex-col gap-3">
+          {knownUserNames.length > 0 && <select className="h-12 w-full rounded-lg border border-slate-300 px-3 text-xl sm:text-2xl" value={knownUserNames.includes(nameInput.trim()) ? nameInput.trim() : ''} onChange={(e) => setNameInput(e.target.value)}>
+            <option value="">{tr.selectExistingUser}</option>
+            {knownUserNames.map((userName) => <option key={userName} value={userName}>{userName}</option>)}
+          </select>}
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input className="h-12 w-full rounded-lg border border-slate-300 px-3 text-xl sm:text-2xl" value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmUser(); }} placeholder={tr.namePlaceholder} />
+            <button className="h-12 rounded-lg bg-blue-700 px-5 font-bold text-white sm:min-w-24" onClick={handleConfirmUser}>{tr.ok}</button>
+          </div>
         </div>
       </section>
     </div>;
