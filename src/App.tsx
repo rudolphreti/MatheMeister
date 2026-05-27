@@ -7,7 +7,7 @@ import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, finalizeSessionResults, getCorrectionProgress, moveSkippedProblemToQueueEnd, shouldShowCorrectionAction } from './lib/session';
 import { getSessionEndMessage } from './lib/sessionEndMessage';
-import { buildCrossingSteps, isBridgeToTenSubtractionType, parseSimpleSubtraction, toRows } from './lib/subtractionDidactics';
+import { buildCrossingSteps, buildRowCrossCountsFromRight, isBridgeToTenSubtractionType, parseSimpleSubtraction, toRows } from './lib/subtractionDidactics';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], sessionAttempts: [], correctionQueue: [], correctionSolvedKeys: [], correctionModeActive: false, lastScreen: 'practice' }, problemStats: {} });
@@ -84,6 +84,10 @@ export function App() {
     if (!parsed) return null;
     return isBridgeToTenSubtractionType(parsed) ? parsed : null;
   }, [profile.session.activeProblem?.expression]);
+  const crossingSteps = useMemo(
+    () => didacticSubtraction ? buildCrossingSteps(didacticSubtraction.minuend, didacticSubtraction.subtrahend) : [],
+    [didacticSubtraction]
+  );
   const allProblems = useMemo(() => {
     const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
     return Array.from(combinedPoolMap.values());
@@ -447,32 +451,57 @@ export function App() {
       {sessionStarted && didacticSubtraction && visualizationOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-3">
         <div className="w-full max-w-4xl rounded-xl border border-slate-300 bg-white p-4">
           <div className="mb-2 flex items-start justify-between gap-2">
-            <h3 className="text-lg font-bold">{tr.visualizationTitle}</h3>
+            <h3 className="text-lg font-bold">
+              {visualizationStep === 0
+                ? tr.visualizationStep1
+                : visualizationStep === crossingSteps.length + 1
+                  ? tr.visualizationStepQuestion
+                  : visualizationStep === 1
+                    ? tr.visualizationStep2
+                    : tr.visualizationStep3}
+            </h3>
             <button aria-label={tr.close} className="rounded border border-slate-400 px-2 py-1 font-bold" onClick={() => setVisualizationOpen(false)}>✕</button>
           </div>
-          {visualizationStep === 0 && <p className="mb-1">{tr.visualizationStep1}</p>}
           <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <p className="mb-1 font-semibold">Blau: {didacticSubtraction.minuend}</p>
             {toRows(didacticSubtraction.minuend).map((balls, rowIndex) => <div key={`blue-row-${rowIndex}`} className="mb-1 flex flex-wrap gap-1">
-              {Array.from({ length: balls }).map((_, i) => <span key={`blue-${rowIndex}-${i}`}>🔵</span>)}
+              {Array.from({ length: balls }).map((_, i) => {
+                const stepCrossed = visualizationStep > 0 && visualizationStep <= crossingSteps.length
+                  ? buildRowCrossCountsFromRight(
+                    toRows(didacticSubtraction.minuend),
+                    crossingSteps[visualizationStep - 1].blueCrossed
+                  )[rowIndex]
+                  : 0;
+                const crossed = i >= balls - stepCrossed;
+                return <span key={`blue-${rowIndex}-${i}`} className={crossed ? 'line-through decoration-2 decoration-black/80' : ''}>🔵</span>;
+              })}
             </div>)}
           </div>
           <div>
             <p className="mb-1 font-semibold">Rot: {didacticSubtraction.subtrahend}</p>
             {toRows(didacticSubtraction.subtrahend).map((balls, rowIndex) => <div key={`red-row-${rowIndex}`} className="mb-1 flex flex-wrap gap-1">
-              {Array.from({ length: balls }).map((_, i) => <span key={`red-${rowIndex}-${i}`}>🔴</span>)}
+              {Array.from({ length: balls }).map((_, i) => {
+                const stepCrossed = visualizationStep > 0 && visualizationStep <= crossingSteps.length
+                  ? buildRowCrossCountsFromRight(
+                    toRows(didacticSubtraction.subtrahend),
+                    crossingSteps[visualizationStep - 1].redCrossed
+                  )[rowIndex]
+                  : 0;
+                const crossed = i >= balls - stepCrossed;
+                return <span key={`red-${rowIndex}-${i}`} className={crossed ? 'line-through decoration-2 decoration-black/80' : ''}>🔴</span>;
+              })}
             </div>)}
           </div>
           </div>
-          {buildCrossingSteps(didacticSubtraction.minuend, didacticSubtraction.subtrahend).map((step, idx) => visualizationStep === idx + 1 && <p key={`cross-step-${idx}`}>
-            {idx === 0 ? `${tr.visualizationStep2}: ` : `${tr.visualizationStep3}: `}
-            Streiche {step.blueCrossed} blaue Kugeln und {step.redCrossed} rote Kugeln von rechts nach links.
-          </p>)}
-          {visualizationStep === buildCrossingSteps(didacticSubtraction.minuend, didacticSubtraction.subtrahend).length + 1 && <p className="mt-2 font-bold">{tr.visualizationQuestion}</p>}
+          <p className="mt-2 border-t border-slate-200 pt-2">
+            {visualizationStep === 0 && tr.visualizationStep1Description}
+            {visualizationStep > 0 && visualizationStep <= crossingSteps.length && tr.visualizationCrossDescription}
+            {visualizationStep === crossingSteps.length + 1 && tr.visualizationQuestion}
+          </p>
           <div className="mt-3 flex justify-end gap-2">
             <button className="rounded border border-slate-400 px-3 py-2 font-semibold disabled:opacity-50" disabled={visualizationStep === 0} onClick={() => setVisualizationStep((v) => Math.max(0, v - 1))}>{tr.back}</button>
-            <button className="rounded bg-blue-700 px-3 py-2 font-semibold text-white disabled:opacity-50" disabled={visualizationStep >= buildCrossingSteps(didacticSubtraction.minuend, didacticSubtraction.subtrahend).length + 1} onClick={() => setVisualizationStep((v) => v + 1)}>{tr.next}</button>
+            <button className="rounded bg-blue-700 px-3 py-2 font-semibold text-white disabled:opacity-50" disabled={visualizationStep >= crossingSteps.length + 1} onClick={() => setVisualizationStep((v) => v + 1)}>{tr.next}</button>
           </div>
         </div>
       </div>}

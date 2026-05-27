@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCrossingSteps, isBridgeToTenSubtractionType, parseSimpleSubtraction, toRows } from '../src/lib/subtractionDidactics';
+import { buildCrossingSteps, buildRowCrossCountsFromRight, isBridgeToTenSubtractionType, parseSimpleSubtraction, toRows } from '../src/lib/subtractionDidactics';
 
 describe('subtraction didactics', () => {
   it('detects bridge-to-ten subtraction type', () => {
@@ -25,5 +25,12 @@ describe('subtraction didactics', () => {
     expect(toRows(17)).toEqual([10, 7]);
     expect(toRows(9)).toEqual([9]);
     expect(toRows(20)).toEqual([10, 10]);
+  });
+
+  it('distributes crossed balls from right to left by rows', () => {
+    expect(buildRowCrossCountsFromRight([10, 7], 2)).toEqual([0, 2]);
+    expect(buildRowCrossCountsFromRight([10, 7], 7)).toEqual([0, 7]);
+    expect(buildRowCrossCountsFromRight([10, 7], 9)).toEqual([2, 7]);
+    expect(buildRowCrossCountsFromRight([9], 7)).toEqual([7]);
   });
 });

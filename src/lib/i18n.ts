@@ -78,8 +78,11 @@ export const t = (_lang: Language) => ({
   correctionDoneNotice: '✅ Korrektur abgeschlossen. Gute Arbeit!',
   visualize: 'Visualisieren',
   visualizationTitle: 'Visualisierung der Subtraktion',
-  visualizationStep1: 'Schritt 1: Zeige blaue und rote Kugeln ohne Durchstreichen.',
+  visualizationStep1: 'Schritt 1',
   visualizationStep2: 'Schritt 2',
   visualizationStep3: 'Schritt 3',
+  visualizationStepQuestion: 'Frage',
+  visualizationStep1Description: 'Zeige blaue und rote Kugeln ohne Durchstreichen.',
+  visualizationCrossDescription: 'Streiche die Kugeln von rechts nach links durch.',
   visualizationQuestion: 'Frage: Wie viele Kugeln sind übrig?',
 });

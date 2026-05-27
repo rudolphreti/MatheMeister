@@ -42,3 +42,15 @@ export function toRows(count: number): number[] {
   }
   return rows;
 }
+
+export function buildRowCrossCountsFromRight(rows: number[], crossedTotal: number): number[] {
+  const result = rows.map(() => 0);
+  let left = Math.max(0, crossedTotal);
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    if (left <= 0) break;
+    const crossedInRow = Math.min(rows[i], left);
+    result[i] = crossedInRow;
+    left -= crossedInRow;
+  }
+  return result;
+}
