@@ -7,6 +7,7 @@ import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, finalizeSessionResults, getCorrectionProgress, moveSkippedProblemToQueueEnd, shouldShowCorrectionAction } from './lib/session';
 import { getSessionEndMessage } from './lib/sessionEndMessage';
+import { buildCrossingSteps, isBridgeToTenSubtractionType, parseSimpleSubtraction, toRows } from './lib/subtractionDidactics';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], sessionAttempts: [], correctionQueue: [], correctionSolvedKeys: [], correctionModeActive: false, lastScreen: 'practice' }, problemStats: {} });
@@ -71,10 +72,17 @@ export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [pendingProblemStats, setPendingProblemStats] = useState<Record<string, ProblemStat>>({});
   const [sessionFinalized, setSessionFinalized] = useState(false);
+  const [visualizationOpen, setVisualizationOpen] = useState(false);
   const [problemQueue, setProblemQueue] = useState<string[]>([]);
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
   const customProblems = useMemo(() => parseCustomProblems(profile.settings), [profile.settings]);
+  const didacticSubtraction = useMemo(() => {
+    const activeExpression = profile.session.activeProblem?.expression ?? '';
+    const parsed = parseSimpleSubtraction(activeExpression);
+    if (!parsed) return null;
+    return isBridgeToTenSubtractionType(parsed) ? parsed : null;
+  }, [profile.session.activeProblem?.expression]);
   const allProblems = useMemo(() => {
     const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
     return Array.from(combinedPoolMap.values());
@@ -135,6 +143,10 @@ export function App() {
     setProfile((p) => ({ ...p, session: { ...p.session, activeProblem: nextProblem, typedAnswer: '', problemStartedAt: Date.now() } }));
     setFeedback(null);
   }, [allProblems, pendingProblemStats, profile.problemStats, profile.session.activeProblem]);
+
+  useEffect(() => {
+    setVisualizationOpen(false);
+  }, [profile.session.activeProblem?.key]);
 
   const timed = profile.settings.mode === 'timed';
   const remaining = profile.settings.mode === 'timed' && profile.session.sessionEndsAt
@@ -418,6 +430,31 @@ export function App() {
       {!sessionStarted && <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" style={{ background: '#2e7d32', color: '#fff' }} onClick={startPracticeSession}>{tr.startSession}</button>}
       {sessionStarted && <><div className="my-2 text-center text-4xl font-bold leading-tight sm:text-5xl md:text-6xl lg:text-7xl">{profile.session.activeProblem?.expression ?? '...'}</div>
       <div className="min-h-20 rounded border-2 border-black p-3 text-center text-3xl sm:text-4xl md:text-5xl">{profile.session.typedAnswer || '0'}</div></>}
+      {sessionStarted && didacticSubtraction && <button className="rounded bg-indigo-700 px-3 py-2 font-bold text-white" onClick={() => setVisualizationOpen(true)}>🔵🔴 {tr.visualize}</button>}
+
+      {sessionStarted && didacticSubtraction && visualizationOpen && <div className="rounded-xl border border-slate-300 bg-white p-4">
+        <h3 className="mb-2 text-lg font-bold">{tr.visualizationTitle}</h3>
+        <p className="mb-1">{tr.visualizationStep1}</p>
+        <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div>
+            <p className="mb-1 font-semibold">Blau: {didacticSubtraction.minuend}</p>
+            {toRows(didacticSubtraction.minuend).map((balls, rowIndex) => <div key={`blue-row-${rowIndex}`} className="mb-1 flex flex-wrap gap-1">
+              {Array.from({ length: balls }).map((_, i) => <span key={`blue-${rowIndex}-${i}`}>🔵</span>)}
+            </div>)}
+          </div>
+          <div>
+            <p className="mb-1 font-semibold">Rot: {didacticSubtraction.subtrahend}</p>
+            {toRows(didacticSubtraction.subtrahend).map((balls, rowIndex) => <div key={`red-row-${rowIndex}`} className="mb-1 flex flex-wrap gap-1">
+              {Array.from({ length: balls }).map((_, i) => <span key={`red-${rowIndex}-${i}`}>🔴</span>)}
+            </div>)}
+          </div>
+        </div>
+        {buildCrossingSteps(didacticSubtraction.minuend, didacticSubtraction.subtrahend).map((step, idx) => <p key={`cross-step-${idx}`}>
+          {idx === 0 ? `${tr.visualizationStep2}: ` : `${tr.visualizationStep3}: `}
+          Streiche {step.blueCrossed} blaue Kugeln und {step.redCrossed} rote Kugeln von rechts nach links.
+        </p>)}
+        <p className="mt-2 font-bold">{tr.visualizationQuestion}</p>
+      </div>}
 
       <div className="min-h-10 text-center text-xl font-bold sm:text-2xl md:text-3xl">{!sessionStarted ? ' ' : ended ? sessionEndMessage : feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' '}</div>
 
