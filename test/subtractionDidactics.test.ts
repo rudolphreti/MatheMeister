@@ -14,10 +14,14 @@ describe('subtraction didactics', () => {
     expect(isBridgeToTenSubtractionType({ minuend: 17, subtrahend: 7, result: 10 })).toBe(false);
   });
 
-  it('builds crossing steps for 17 - 9 as 2 then 7', () => {
+  it('builds crossing steps by first reducing blue to 10, then crossing remaining red', () => {
+    expect(buildCrossingSteps(14, 9)).toEqual([
+      { blueCrossed: 4, redCrossed: 4 },
+      { blueCrossed: 5, redCrossed: 5 }
+    ]);
     expect(buildCrossingSteps(17, 9)).toEqual([
-      { blueCrossed: 2, redCrossed: 2 },
-      { blueCrossed: 7, redCrossed: 7 }
+      { blueCrossed: 7, redCrossed: 7 },
+      { blueCrossed: 2, redCrossed: 2 }
     ]);
   });
 
