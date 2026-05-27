@@ -7,7 +7,7 @@ import { t } from './lib/i18n';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, finalizeSessionResults, getCorrectionProgress, moveSkippedProblemToQueueEnd, shouldShowCorrectionAction } from './lib/session';
 import { getSessionEndMessage } from './lib/sessionEndMessage';
-import { buildCrossingSteps, buildRowCrossCountsFromRight, isBridgeToTenSubtractionType, parseSimpleSubtraction, toRows } from './lib/subtractionDidactics';
+import { buildCrossingSteps, buildRowCrossCountsFromRight, buildVisualizationStepView, isBridgeToTenSubtractionType, parseSimpleSubtraction, toRows } from './lib/subtractionDidactics';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], sessionAttempts: [], correctionQueue: [], correctionSolvedKeys: [], correctionModeActive: false, lastScreen: 'practice' }, problemStats: {} });
@@ -87,6 +87,10 @@ export function App() {
   const crossingSteps = useMemo(
     () => didacticSubtraction ? buildCrossingSteps(didacticSubtraction.minuend, didacticSubtraction.subtrahend) : [],
     [didacticSubtraction]
+  );
+  const activeVisualizationView = useMemo(
+    () => didacticSubtraction ? buildVisualizationStepView(didacticSubtraction.minuend, didacticSubtraction.subtrahend, visualizationStep) : null,
+    [didacticSubtraction, visualizationStep]
   );
   const allProblems = useMemo(() => {
     const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
@@ -464,13 +468,13 @@ export function App() {
           </div>
           <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <p className="mb-1 font-semibold">Blau: {didacticSubtraction.minuend}</p>
-            {toRows(didacticSubtraction.minuend).map((balls, rowIndex) => <div key={`blue-row-${rowIndex}`} className="mb-1 flex flex-wrap gap-1">
+            <p className="mb-1 font-semibold">Blau: {activeVisualizationView?.blueVisible ?? didacticSubtraction.minuend}</p>
+            {toRows(activeVisualizationView?.blueVisible ?? didacticSubtraction.minuend).map((balls, rowIndex) => <div key={`blue-row-${rowIndex}`} className="mb-1 flex flex-wrap gap-1">
               {Array.from({ length: balls }).map((_, i) => {
                 const stepCrossed = visualizationStep > 0 && visualizationStep <= crossingSteps.length
                   ? buildRowCrossCountsFromRight(
-                    toRows(didacticSubtraction.minuend),
-                    crossingSteps[visualizationStep - 1].blueCrossed
+                    toRows(activeVisualizationView?.blueVisible ?? didacticSubtraction.minuend),
+                    activeVisualizationView?.blueCrossed ?? 0
                   )[rowIndex]
                   : 0;
                 const crossed = i >= balls - stepCrossed;
@@ -479,13 +483,13 @@ export function App() {
             </div>)}
           </div>
           <div>
-            <p className="mb-1 font-semibold">Rot: {didacticSubtraction.subtrahend}</p>
-            {toRows(didacticSubtraction.subtrahend).map((balls, rowIndex) => <div key={`red-row-${rowIndex}`} className="mb-1 flex flex-wrap gap-1">
+            <p className="mb-1 font-semibold">Rot: {activeVisualizationView?.redVisible ?? didacticSubtraction.subtrahend}</p>
+            {toRows(activeVisualizationView?.redVisible ?? didacticSubtraction.subtrahend).map((balls, rowIndex) => <div key={`red-row-${rowIndex}`} className="mb-1 flex flex-wrap gap-1">
               {Array.from({ length: balls }).map((_, i) => {
                 const stepCrossed = visualizationStep > 0 && visualizationStep <= crossingSteps.length
                   ? buildRowCrossCountsFromRight(
-                    toRows(didacticSubtraction.subtrahend),
-                    crossingSteps[visualizationStep - 1].redCrossed
+                    toRows(activeVisualizationView?.redVisible ?? didacticSubtraction.subtrahend),
+                    activeVisualizationView?.redCrossed ?? 0
                   )[rowIndex]
                   : 0;
                 const crossed = i >= balls - stepCrossed;

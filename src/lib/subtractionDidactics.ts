@@ -22,6 +22,13 @@ export interface CrossingStep {
   redCrossed: number;
 }
 
+export interface VisualizationStepView {
+  blueVisible: number;
+  redVisible: number;
+  blueCrossed: number;
+  redCrossed: number;
+}
+
 export function buildCrossingSteps(minuend: number, subtrahend: number): CrossingStep[] {
   const steps: CrossingStep[] = [];
   const toTen = Math.max(0, minuend - 10);
@@ -53,4 +60,25 @@ export function buildRowCrossCountsFromRight(rows: number[], crossedTotal: numbe
     left -= crossedInRow;
   }
   return result;
+}
+
+export function buildVisualizationStepView(
+  minuend: number,
+  subtrahend: number,
+  stepIndex: number
+): VisualizationStepView {
+  const crossingSteps = buildCrossingSteps(minuend, subtrahend);
+  if (stepIndex <= 0) return { blueVisible: minuend, redVisible: subtrahend, blueCrossed: 0, redCrossed: 0 };
+  if (stepIndex === 1) {
+    const first = crossingSteps[0] ?? { blueCrossed: 0, redCrossed: 0 };
+    return { blueVisible: minuend, redVisible: subtrahend, blueCrossed: first.blueCrossed, redCrossed: first.redCrossed };
+  }
+  const first = crossingSteps[0] ?? { blueCrossed: 0, redCrossed: 0 };
+  const second = crossingSteps[1] ?? { blueCrossed: 0, redCrossed: 0 };
+  return {
+    blueVisible: 10,
+    redVisible: subtrahend - first.redCrossed,
+    blueCrossed: second.blueCrossed,
+    redCrossed: subtrahend - first.redCrossed
+  };
 }

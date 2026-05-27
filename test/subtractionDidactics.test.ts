@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCrossingSteps, buildRowCrossCountsFromRight, isBridgeToTenSubtractionType, parseSimpleSubtraction, toRows } from '../src/lib/subtractionDidactics';
+import { buildCrossingSteps, buildRowCrossCountsFromRight, buildVisualizationStepView, isBridgeToTenSubtractionType, parseSimpleSubtraction, toRows } from '../src/lib/subtractionDidactics';
 
 describe('subtraction didactics', () => {
   it('detects bridge-to-ten subtraction type', () => {
@@ -36,5 +36,20 @@ describe('subtraction didactics', () => {
     expect(buildRowCrossCountsFromRight([10, 7], 7)).toEqual([0, 7]);
     expect(buildRowCrossCountsFromRight([10, 7], 9)).toEqual([2, 7]);
     expect(buildRowCrossCountsFromRight([9], 7)).toEqual([7]);
+  });
+
+  it('builds step-3 view with 10 blue visible and all red crossed', () => {
+    expect(buildVisualizationStepView(11, 8, 2)).toEqual({
+      blueVisible: 10,
+      redVisible: 7,
+      blueCrossed: 7,
+      redCrossed: 7
+    });
+    expect(buildVisualizationStepView(14, 9, 2)).toEqual({
+      blueVisible: 10,
+      redVisible: 5,
+      blueCrossed: 5,
+      redCrossed: 5
+    });
   });
 });
