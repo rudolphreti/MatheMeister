@@ -24,9 +24,8 @@ export interface CrossingStep {
 
 export function buildCrossingSteps(minuend: number, subtrahend: number): CrossingStep[] {
   const steps: CrossingStep[] = [];
-  let blueLastRow = minuend % 10;
-  if (blueLastRow === 0) blueLastRow = 10;
-  const firstCross = Math.min(blueLastRow, subtrahend);
+  const ones = minuend % 10;
+  const firstCross = ones > 0 ? Math.min(subtrahend - ones, subtrahend) : 0;
   if (firstCross > 0) steps.push({ blueCrossed: firstCross, redCrossed: firstCross });
   const remaining = subtrahend - firstCross;
   if (remaining > 0) steps.push({ blueCrossed: remaining, redCrossed: remaining });

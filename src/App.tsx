@@ -73,6 +73,7 @@ export function App() {
   const [pendingProblemStats, setPendingProblemStats] = useState<Record<string, ProblemStat>>({});
   const [sessionFinalized, setSessionFinalized] = useState(false);
   const [visualizationOpen, setVisualizationOpen] = useState(false);
+  const [visualizationStep, setVisualizationStep] = useState(0);
   const [problemQueue, setProblemQueue] = useState<string[]>([]);
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
@@ -146,7 +147,15 @@ export function App() {
 
   useEffect(() => {
     setVisualizationOpen(false);
+    setVisualizationStep(0);
   }, [profile.session.activeProblem?.key]);
+  useEffect(() => {
+    function onOverlayEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setVisualizationOpen(false);
+    }
+    if (visualizationOpen) window.addEventListener('keydown', onOverlayEscape);
+    return () => window.removeEventListener('keydown', onOverlayEscape);
+  }, [visualizationOpen]);
 
   const timed = profile.settings.mode === 'timed';
   const remaining = profile.settings.mode === 'timed' && profile.session.sessionEndsAt
@@ -430,12 +439,19 @@ export function App() {
       {!sessionStarted && <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" style={{ background: '#2e7d32', color: '#fff' }} onClick={startPracticeSession}>{tr.startSession}</button>}
       {sessionStarted && <><div className="my-2 text-center text-4xl font-bold leading-tight sm:text-5xl md:text-6xl lg:text-7xl">{profile.session.activeProblem?.expression ?? '...'}</div>
       <div className="min-h-20 rounded border-2 border-black p-3 text-center text-3xl sm:text-4xl md:text-5xl">{profile.session.typedAnswer || '0'}</div></>}
-      {sessionStarted && didacticSubtraction && <button className="rounded bg-indigo-700 px-3 py-2 font-bold text-white" onClick={() => setVisualizationOpen(true)}>🔵🔴 {tr.visualize}</button>}
+      {sessionStarted && didacticSubtraction && <button className="rounded bg-indigo-700 px-3 py-2 font-bold text-white" onClick={() => {
+        setVisualizationStep(0);
+        setVisualizationOpen(true);
+      }}>🔵🔴 {tr.visualize}</button>}
 
-      {sessionStarted && didacticSubtraction && visualizationOpen && <div className="rounded-xl border border-slate-300 bg-white p-4">
-        <h3 className="mb-2 text-lg font-bold">{tr.visualizationTitle}</h3>
-        <p className="mb-1">{tr.visualizationStep1}</p>
-        <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+      {sessionStarted && didacticSubtraction && visualizationOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-3">
+        <div className="w-full max-w-4xl rounded-xl border border-slate-300 bg-white p-4">
+          <div className="mb-2 flex items-start justify-between gap-2">
+            <h3 className="text-lg font-bold">{tr.visualizationTitle}</h3>
+            <button aria-label={tr.close} className="rounded border border-slate-400 px-2 py-1 font-bold" onClick={() => setVisualizationOpen(false)}>✕</button>
+          </div>
+          {visualizationStep === 0 && <p className="mb-1">{tr.visualizationStep1}</p>}
+          <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <p className="mb-1 font-semibold">Blau: {didacticSubtraction.minuend}</p>
             {toRows(didacticSubtraction.minuend).map((balls, rowIndex) => <div key={`blue-row-${rowIndex}`} className="mb-1 flex flex-wrap gap-1">
@@ -448,12 +464,17 @@ export function App() {
               {Array.from({ length: balls }).map((_, i) => <span key={`red-${rowIndex}-${i}`}>🔴</span>)}
             </div>)}
           </div>
+          </div>
+          {buildCrossingSteps(didacticSubtraction.minuend, didacticSubtraction.subtrahend).map((step, idx) => visualizationStep === idx + 1 && <p key={`cross-step-${idx}`}>
+            {idx === 0 ? `${tr.visualizationStep2}: ` : `${tr.visualizationStep3}: `}
+            Streiche {step.blueCrossed} blaue Kugeln und {step.redCrossed} rote Kugeln von rechts nach links.
+          </p>)}
+          {visualizationStep === buildCrossingSteps(didacticSubtraction.minuend, didacticSubtraction.subtrahend).length + 1 && <p className="mt-2 font-bold">{tr.visualizationQuestion}</p>}
+          <div className="mt-3 flex justify-end gap-2">
+            <button className="rounded border border-slate-400 px-3 py-2 font-semibold disabled:opacity-50" disabled={visualizationStep === 0} onClick={() => setVisualizationStep((v) => Math.max(0, v - 1))}>{tr.back}</button>
+            <button className="rounded bg-blue-700 px-3 py-2 font-semibold text-white disabled:opacity-50" disabled={visualizationStep >= buildCrossingSteps(didacticSubtraction.minuend, didacticSubtraction.subtrahend).length + 1} onClick={() => setVisualizationStep((v) => v + 1)}>{tr.next}</button>
+          </div>
         </div>
-        {buildCrossingSteps(didacticSubtraction.minuend, didacticSubtraction.subtrahend).map((step, idx) => <p key={`cross-step-${idx}`}>
-          {idx === 0 ? `${tr.visualizationStep2}: ` : `${tr.visualizationStep3}: `}
-          Streiche {step.blueCrossed} blaue Kugeln und {step.redCrossed} rote Kugeln von rechts nach links.
-        </p>)}
-        <p className="mt-2 font-bold">{tr.visualizationQuestion}</p>
       </div>}
 
       <div className="min-h-10 text-center text-xl font-bold sm:text-2xl md:text-3xl">{!sessionStarted ? ' ' : ended ? sessionEndMessage : feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' '}</div>
