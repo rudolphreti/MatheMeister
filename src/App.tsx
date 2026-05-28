@@ -4,6 +4,7 @@ import { coinReward, explainCoinReward, explainSelectionDecision, pickWeightedPr
 import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, loadUserNames, saveLastUserName, saveProfile } from './lib/storage';
 import { playCoinSound, playDigitSound } from './lib/audio';
 import { t } from './lib/i18n';
+import { getGlobalKeyboardAction, getKeyboardTargetKind } from './lib/keyboard';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, finalizeSessionResults, getCorrectionProgress, moveSkippedProblemToQueueEnd, shouldShowCorrectionAction } from './lib/session';
 import { getSessionEndMessage } from './lib/sessionEndMessage';
@@ -175,6 +176,7 @@ export function App() {
   const endedByUniquePoolExhausted = profile.session.blockedProblemKeys.length >= allProblems.length && allProblems.length > 0;
   const ended = ((timed && remaining <= 0) || endedByExamples || endedByUniquePoolExhausted) && !profile.session.correctionModeActive;
   const displayRemainingMs = ended ? 0 : remaining;
+  const sessionStarted = profile.session.sessionStartAt !== null;
 
   useEffect(() => {
     if (!ended) return;
@@ -403,6 +405,32 @@ export function App() {
     setProfile((p) => ({ ...p, session: buildSessionStateForUserStart(p, startAt, durationMs) }));
   };
 
+  useEffect(() => {
+    function onGlobalKeyboardControl(event: KeyboardEvent) {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+      const action = getGlobalKeyboardAction({
+        key: event.key,
+        nameConfirmed,
+        sessionStarted,
+        ended,
+        targetKind: getKeyboardTargetKind(event.target),
+        practiceScreen: profile.session.lastScreen === 'practice'
+      });
+      if (!action) return;
+      event.preventDefault();
+      if (action.type === 'confirmUser') handleConfirmUser();
+      if (action.type === 'startSession') startPracticeSession();
+      if (action.type === 'submitAnswer') submit();
+      if (action.type === 'appendDigit') pushDigit(action.digit);
+      if (action.type === 'deleteDigit') {
+        setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }));
+      }
+    }
+
+    window.addEventListener('keydown', onGlobalKeyboardControl);
+    return () => window.removeEventListener('keydown', onGlobalKeyboardControl);
+  }, [ended, nameConfirmed, sessionStarted, profile.session.typedAnswer, profile.session.activeProblem, profile.session.problemStartedAt, profile.session.currentStats, profile.session.blockedProblemKeys, profile.session.correctionModeActive, profile.session.lastScreen, profile.settings, profile.problemStats, profile.leaderboard, profile.userName, pendingProblemStats, sessionFinalized, allProblems]);
+
   if (!nameConfirmed) {
     return <div className="min-h-screen w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8 text-base sm:text-lg md:text-xl lg:text-2xl">
       <section className="mx-auto mt-8 flex w-full max-w-xl flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:mt-14 sm:p-6">
@@ -421,15 +449,7 @@ export function App() {
     </div>;
   }
 
-  const sessionStarted = profile.session.sessionStartAt !== null;
-
-  return <div className="min-h-screen w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8 text-base sm:text-lg md:text-xl lg:text-2xl" onKeyDown={(e) => {
-    if (e.key === 'Enter') submit();
-    if (/^[0-9]$/.test(e.key)) pushDigit(e.key);
-    if (e.key === 'Backspace') {
-      setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }));
-    }
-  }} tabIndex={0}>
+  return <div className="min-h-screen w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8 text-base sm:text-lg md:text-xl lg:text-2xl">
     <nav className="relative mb-3 flex items-center justify-between">
       <button className="min-w-14 rounded border border-slate-700 px-3 py-2 font-bold" aria-label="Vollbild" onClick={() => { if (!document.fullscreenElement) { void document.documentElement.requestFullscreen(); return; } void document.exitFullscreen(); }}>⛶</button>
       <button className="min-w-14 rounded border border-slate-700 px-3 py-2 font-bold" aria-label={tr.menu} onClick={() => setMenuOpen((v) => !v)}>☰</button>
