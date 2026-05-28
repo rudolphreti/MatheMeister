@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildProblemPool, generateProblem, parseCustomProblems } from './lib/math';
 import { coinReward, explainCoinReward, explainSelectionDecision, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
 import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, loadUserNames, saveLastUserName, saveProfile } from './lib/storage';
@@ -76,6 +76,7 @@ export function App() {
   const [sessionFinalized, setSessionFinalized] = useState(false);
   const [visualizationOpen, setVisualizationOpen] = useState(false);
   const [visualizationStep, setVisualizationStep] = useState(0);
+  const menuRef = useRef<HTMLElement | null>(null);
   const [problemQueue, setProblemQueue] = useState<string[]>([]);
   const tr = t(profile.settings.language);
   const pool = useMemo(() => buildProblemPool(profile.settings), [profile.settings]);
@@ -166,6 +167,17 @@ export function App() {
     if (visualizationOpen) window.addEventListener('keydown', onOverlayEscape);
     return () => window.removeEventListener('keydown', onOverlayEscape);
   }, [visualizationOpen]);
+
+  useEffect(() => {
+    function onMenuPointerDown(event: PointerEvent) {
+      if (!menuOpen) return;
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      setMenuOpen(false);
+    }
+
+    window.addEventListener('pointerdown', onMenuPointerDown);
+    return () => window.removeEventListener('pointerdown', onMenuPointerDown);
+  }, [menuOpen]);
 
   const timed = profile.settings.mode === 'timed';
   const remaining = profile.settings.mode === 'timed' && profile.session.sessionEndsAt
@@ -411,6 +423,24 @@ export function App() {
     setProfile((p) => ({ ...p, session: buildSessionStateForUserStart(p, startAt, durationMs) }));
   };
 
+  const startCorrectionSession = () => {
+    const correctionQueue = buildCorrectionQueue(profile.session.sessionAttempts);
+    const nextProblem = correctionQueue.length > 0 ? allProblems.find((problem) => problem.key === correctionQueue[0]) ?? null : null;
+    setProfile((p) => ({
+      ...p,
+      session: {
+        ...p.session,
+        correctionModeActive: correctionQueue.length > 0,
+        correctionQueue,
+        correctionSolvedKeys: [],
+        activeProblem: nextProblem,
+        typedAnswer: '',
+        problemStartedAt: Date.now(),
+        sessionEndsAt: null
+      }
+    }));
+  };
+
   useEffect(() => {
     function onGlobalKeyboardControl(event: KeyboardEvent) {
       if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -420,12 +450,18 @@ export function App() {
         sessionStarted,
         ended,
         targetKind: getKeyboardTargetKind(event.target),
-        practiceScreen: profile.session.lastScreen === 'practice'
+        practiceScreen: profile.session.lastScreen === 'practice',
+        menuOpen,
+        canStartCorrection: ended && showCorrectionAction,
+        canRestartSession: ended && (correctionModeCompleted || !showCorrectionAction)
       });
       if (!action) return;
       event.preventDefault();
       if (action.type === 'confirmUser') handleConfirmUser();
       if (action.type === 'startSession') startPracticeSession();
+      if (action.type === 'startCorrection') startCorrectionSession();
+      if (action.type === 'restartSession') restartSession();
+      if (action.type === 'closeMenu') setMenuOpen(false);
       if (action.type === 'submitAnswer') submit();
       if (action.type === 'appendDigit') pushDigit(action.digit);
       if (action.type === 'deleteDigit') {
@@ -435,7 +471,7 @@ export function App() {
 
     window.addEventListener('keydown', onGlobalKeyboardControl);
     return () => window.removeEventListener('keydown', onGlobalKeyboardControl);
-  }, [ended, nameConfirmed, sessionStarted, profile.session.typedAnswer, profile.session.activeProblem, profile.session.problemStartedAt, profile.session.currentStats, profile.session.blockedProblemKeys, profile.session.correctionModeActive, profile.session.lastScreen, profile.settings, profile.problemStats, profile.leaderboard, profile.userName, pendingProblemStats, sessionFinalized, allProblems]);
+  }, [ended, nameConfirmed, sessionStarted, menuOpen, showCorrectionAction, correctionModeCompleted, profile.session.typedAnswer, profile.session.activeProblem, profile.session.problemStartedAt, profile.session.currentStats, profile.session.blockedProblemKeys, profile.session.correctionModeActive, profile.session.lastScreen, profile.session.sessionAttempts, profile.settings, profile.problemStats, profile.leaderboard, profile.userName, pendingProblemStats, sessionFinalized, allProblems]);
 
   if (!nameConfirmed) {
     return <div className="min-h-screen w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8 text-base sm:text-lg md:text-xl lg:text-2xl">
@@ -456,7 +492,7 @@ export function App() {
   }
 
   return <div className="min-h-screen w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8 text-base sm:text-lg md:text-xl lg:text-2xl">
-    <nav className="relative mb-3 flex items-center justify-between">
+    <nav ref={menuRef} className="relative mb-3 flex items-center justify-between">
       <button className="min-w-14 rounded border border-slate-700 px-3 py-2 font-bold" aria-label="Vollbild" onClick={() => { if (!document.fullscreenElement) { void document.documentElement.requestFullscreen(); return; } void document.exitFullscreen(); }}>⛶</button>
       <button className="min-w-14 rounded border border-slate-700 px-3 py-2 font-bold" aria-label={tr.menu} onClick={() => setMenuOpen((v) => !v)}>☰</button>
       {menuOpen && <div className="absolute right-0 top-full z-10 mt-1 flex min-w-56 flex-col rounded border border-slate-800 bg-white p-2">{(['practice', 'settings', 'stats', 'problem-stats', 'operations-overview'] as const).map((s) => <button key={s} onClick={() => {
@@ -557,11 +593,7 @@ export function App() {
         {practiceUi.showMainEndedReview && <p>{timedOut ? tr.timeUpQuestion : tr.nextSessionQuestion}</p>}
         {practiceUi.showMainEndedReview && <div className="flex flex-wrap gap-2">
           <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" onClick={restartSession}>{tr.restartSession}</button>
-          {showCorrectionAction && <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" style={{ background: '#f9a825', color: '#000' }} onClick={() => {
-            const correctionQueue = buildCorrectionQueue(profile.session.sessionAttempts);
-            const nextProblem = correctionQueue.length > 0 ? allProblems.find((problem) => problem.key === correctionQueue[0]) ?? null : null;
-            setProfile((p) => ({ ...p, session: { ...p.session, correctionModeActive: correctionQueue.length > 0, correctionQueue, correctionSolvedKeys: [], activeProblem: nextProblem, typedAnswer: '', problemStartedAt: Date.now(), sessionEndsAt: null } }));
-          }}>{tr.correctionMode}</button>}
+          {showCorrectionAction && <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" style={{ background: '#f9a825', color: '#000' }} onClick={startCorrectionSession}>{tr.correctionMode}</button>}
         </div>}
       </div>}
 

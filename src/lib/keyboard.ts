@@ -3,6 +3,10 @@ export type KeyboardTargetKind = 'page' | 'editable' | 'button';
 export type GlobalKeyboardAction =
   | { type: 'confirmUser' }
   | { type: 'startSession' }
+  | { type: 'startCorrection' }
+  | { type: 'restartSession' }
+  | { type: 'closeMenu' }
+  | { type: 'suppress' }
   | { type: 'submitAnswer' }
   | { type: 'appendDigit'; digit: string }
   | { type: 'deleteDigit' };
@@ -14,6 +18,9 @@ type GlobalKeyboardActionInput = {
   ended: boolean;
   targetKind: KeyboardTargetKind;
   practiceScreen: boolean;
+  menuOpen: boolean;
+  canStartCorrection: boolean;
+  canRestartSession: boolean;
 };
 
 export function getKeyboardTargetKind(target: EventTarget | null): KeyboardTargetKind {
@@ -24,6 +31,12 @@ export function getKeyboardTargetKind(target: EventTarget | null): KeyboardTarge
 }
 
 export function getGlobalKeyboardAction(input: GlobalKeyboardActionInput): GlobalKeyboardAction | null {
+  if (input.menuOpen) {
+    if (input.key === 'Escape') return { type: 'closeMenu' };
+    if (input.key === 'Enter') return { type: 'suppress' };
+    return null;
+  }
+
   if (input.targetKind === 'editable') return null;
 
   if (!input.nameConfirmed) {
@@ -37,7 +50,12 @@ export function getGlobalKeyboardAction(input: GlobalKeyboardActionInput): Globa
     return input.key === 'Enter' ? { type: 'startSession' } : null;
   }
 
-  if (input.ended) return null;
+  if (input.ended) {
+    if (input.key !== 'Enter' || input.targetKind === 'button') return null;
+    if (input.canStartCorrection) return { type: 'startCorrection' };
+    if (input.canRestartSession) return { type: 'restartSession' };
+    return null;
+  }
 
   if (/^[0-9]$/.test(input.key)) return { type: 'appendDigit', digit: input.key };
   if (input.key === 'Backspace') return { type: 'deleteDigit' };
