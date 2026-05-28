@@ -8,6 +8,7 @@ import { getGlobalKeyboardAction, getKeyboardTargetKind } from './lib/keyboard';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, finalizeSessionResults, getCorrectionProgress, moveSkippedProblemToQueueEnd, shouldShowCorrectionAction } from './lib/session';
 import { getSessionEndMessage } from './lib/sessionEndMessage';
+import { buildSessionReview, getPracticeUiState } from './lib/sessionUi';
 import { buildCrossingSteps, buildRowCrossCountsFromRight, buildVisualizationStepView, isBridgeToTenSubtractionType, parseSimpleSubtraction, toRows } from './lib/subtractionDidactics';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
@@ -344,15 +345,23 @@ export function App() {
     return { totals, maxAttempts, maxWrong };
   }, [profile.problemStats, pendingProblemStats]);
 
-  const correctionModeCompleted = profile.session.correctionSolvedKeys.length > 0;
+  const correctionModeCompleted = profile.session.correctionSolvedKeys.length > 0 && !profile.session.correctionModeActive;
   const correctionQueueFromAttempts = buildCorrectionQueue(profile.session.sessionAttempts);
   const showCorrectionAction = shouldShowCorrectionAction(correctionQueueFromAttempts, profile.session.correctionSolvedKeys);
-  const unfinishedSessionTasks = Math.max(0, sessionExamples - doneExamples);
-  const correctionModeMistakes = profile.session.correctionQueue.length;
-  const correctionModeUnfinished = Math.max(
-    0,
-    profile.session.correctionQueue.length - profile.session.correctionSolvedKeys.length
-  );
+  const timedOut = timed && remaining <= 0;
+  const practiceUi = getPracticeUiState({
+    sessionStarted,
+    ended,
+    correctionModeActive: profile.session.correctionModeActive,
+    correctionModeCompleted
+  });
+  const sessionReview = buildSessionReview({
+    attempts: profile.session.sessionAttempts,
+    allProblems,
+    doneExamples,
+    sessionExamples,
+    timedOut
+  });
 
   const sessionEndMessage = getSessionEndMessage({
     language: profile.settings.language,
@@ -360,10 +369,7 @@ export function App() {
     timed,
     remainingMs: displayRemainingMs,
     mistakes: profile.session.currentStats.wrong,
-    correctionModeCompleted,
-    unfinishedSessionTasks,
-    correctionModeMistakes,
-    correctionModeUnfinished
+    correctionModeCompleted
   });
 
 
@@ -460,19 +466,19 @@ export function App() {
     </nav>
     {profile.session.lastScreen === 'practice' && <section className="flex h-[calc(100vh-8rem)] flex-col gap-3 overflow-auto">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-xl font-bold sm:text-2xl md:text-3xl">{timed ? `⏱ ${Math.max(0, Math.ceil(displayRemainingMs / 1000))}s` : '⏱ ∞'}</div>
-        <div className="text-xl font-bold sm:text-2xl md:text-3xl">🪙 {profile.session.coins}</div>
-        <div className="progress">📘 {tr.sessionProgressLabel}: {doneExamples}/{sessionExamples}</div>
+        {practiceUi.showTimer && <div className="text-xl font-bold sm:text-2xl md:text-3xl">{timed ? `⏱ ${Math.max(0, Math.ceil(displayRemainingMs / 1000))}s` : '⏱ ∞'}</div>}
+        {practiceUi.showSessionSummary && <div className="text-xl font-bold sm:text-2xl md:text-3xl">🪙 {profile.session.coins}</div>}
+        {practiceUi.showSessionSummary && <div className="progress">📘 {profile.session.correctionModeActive ? `${tr.correctionMode}: ${getCorrectionProgress(profile.session.correctionQueue, profile.session.correctionSolvedKeys).solved}/${getCorrectionProgress(profile.session.correctionQueue, profile.session.correctionSolvedKeys).total}` : `${tr.sessionProgressLabel}: ${doneExamples}/${sessionExamples}`}</div>}
       </div>
       {!sessionStarted && <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" style={{ background: '#2e7d32', color: '#fff' }} onClick={startPracticeSession}>{tr.startSession}</button>}
-      {sessionStarted && <><div className="my-2 text-center text-4xl font-bold leading-tight sm:text-5xl md:text-6xl lg:text-7xl">{profile.session.activeProblem?.expression ?? '...'}</div>
+      {practiceUi.showAnswerArea && <><div className="my-2 text-center text-4xl font-bold leading-tight sm:text-5xl md:text-6xl lg:text-7xl">{profile.session.activeProblem?.expression ?? '...'}</div>
       <div className="min-h-20 rounded border-2 border-black p-3 text-center text-3xl sm:text-4xl md:text-5xl">{profile.session.typedAnswer || '0'}</div></>}
-      {sessionStarted && didacticSubtraction && <button className="rounded bg-indigo-700 px-3 py-2 font-bold text-white" onClick={() => {
+      {practiceUi.showAnswerArea && didacticSubtraction && <button className="rounded bg-indigo-700 px-3 py-2 font-bold text-white" onClick={() => {
         setVisualizationStep(0);
         setVisualizationOpen(true);
       }}>🔵🔴 {tr.visualize}</button>}
 
-      {sessionStarted && didacticSubtraction && visualizationOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-3">
+      {practiceUi.showAnswerArea && didacticSubtraction && visualizationOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-3">
         <div className="w-full max-w-4xl rounded-xl border border-slate-300 bg-white p-4">
           <div className="mb-2 flex items-start justify-between gap-2">
             <h3 className="text-lg font-bold">
@@ -532,32 +538,41 @@ export function App() {
 
       <div className="min-h-10 text-center text-xl font-bold sm:text-2xl md:text-3xl">{!sessionStarted ? ' ' : ended ? sessionEndMessage : feedback === 'correct' ? `✅ ${tr.correct}` : feedback === 'wrong' ? `❌ ${tr.wrong}` : ' '}</div>
 
-      {ended && <div className="timeup">
-        <p>{timed && remaining <= 0 ? tr.timeUpQuestion : tr.nextSessionQuestion}</p>
-        <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" onClick={restartSession}>{tr.restartSession}</button>
-        {showCorrectionAction && <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" style={{ background: '#f9a825', color: '#000' }} onClick={() => {
-          const correctionQueue = buildCorrectionQueue(profile.session.sessionAttempts);
-          const nextProblem = correctionQueue.length > 0 ? allProblems.find((problem) => problem.key === correctionQueue[0]) ?? null : null;
-          setProfile((p) => ({ ...p, session: { ...p.session, correctionModeActive: correctionQueue.length > 0, correctionQueue, correctionSolvedKeys: [], activeProblem: nextProblem, typedAnswer: '', problemStartedAt: Date.now(), sessionEndsAt: null } }));
-        }}>{tr.correctionMode}</button>}
-        {!showCorrectionAction && correctionModeCompleted && <p className="rounded border border-green-300 bg-green-50 px-3 py-2 font-semibold text-green-800">{tr.correctionDoneNotice}</p>}
-        <button className="rounded bg-slate-200 px-3 py-2 font-bold text-slate-700" onClick={() => { const content = profile.session.algorithmLog.join('\n'); const blob = new Blob([content], { type: 'text/plain;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `session-algorithm-log-${Date.now()}.txt`; a.click(); }}>⬇️ Algorithmus-Log</button>
-        <ul>
-          {correctionQueueFromAttempts.map((key) => {
-            const problem = allProblems.find((p) => p.key === key);
-            return <li key={key}>{problem?.expression ?? key}</li>;
-          })}
-        </ul>
+      {ended && (practiceUi.showMainEndedReview || practiceUi.showCorrectionFinishedNotice) && <div className="timeup space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+        {practiceUi.showCorrectionFinishedNotice && <p className="rounded border border-green-300 bg-green-50 px-3 py-2 font-semibold text-green-800">{tr.correctionDoneNotice}</p>}
+        {practiceUi.showMainEndedReview && <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <section>
+            <h3 className="font-bold">{tr.mistakesListTitle}</h3>
+            {sessionReview.mistakes.length > 0 ? <ul className="list-inside list-disc">
+              {sessionReview.mistakes.map((item) => <li key={item.key}>{item.expression}</li>)}
+            </ul> : <p>{tr.noMistakesNotice}</p>}
+          </section>
+          {timedOut && <section>
+            <h3 className="font-bold">{tr.unfinishedTasksListTitle}</h3>
+            {sessionReview.unfinished.length > 0 ? <ul className="list-inside list-disc">
+              {sessionReview.unfinished.map((item) => <li key={item.key}>{item.expression}</li>)}
+            </ul> : <p>{tr.noUnfinishedTasksNotice}</p>}
+          </section>}
+        </div>}
+        {practiceUi.showMainEndedReview && <p>{timedOut ? tr.timeUpQuestion : tr.nextSessionQuestion}</p>}
+        {practiceUi.showMainEndedReview && <div className="flex flex-wrap gap-2">
+          <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" onClick={restartSession}>{tr.restartSession}</button>
+          {showCorrectionAction && <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" style={{ background: '#f9a825', color: '#000' }} onClick={() => {
+            const correctionQueue = buildCorrectionQueue(profile.session.sessionAttempts);
+            const nextProblem = correctionQueue.length > 0 ? allProblems.find((problem) => problem.key === correctionQueue[0]) ?? null : null;
+            setProfile((p) => ({ ...p, session: { ...p.session, correctionModeActive: correctionQueue.length > 0, correctionQueue, correctionSolvedKeys: [], activeProblem: nextProblem, typedAnswer: '', problemStartedAt: Date.now(), sessionEndsAt: null } }));
+          }}>{tr.correctionMode}</button>}
+        </div>}
       </div>}
 
-      {sessionStarted && <div className="grid grid-cols-1 gap-2">
+      {practiceUi.showAnswerControls && <div className="grid grid-cols-1 gap-2">
         <div className="grid grid-cols-10 gap-2">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button className="min-h-14 rounded border border-slate-400 px-2 py-3 text-lg font-semibold sm:min-h-16 sm:text-xl md:min-h-20 md:text-2xl" key={d} disabled={ended} onClick={() => pushDigit(d)}>{d}</button>)}
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button className="min-h-14 rounded border border-slate-400 px-2 py-3 text-lg font-semibold sm:min-h-16 sm:text-xl md:min-h-20 md:text-2xl" key={d} onClick={() => pushDigit(d)}>{d}</button>)}
         </div>
         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <button className="rounded bg-red-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended} onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>⌫ {tr.del}</button>
-          <button className="rounded bg-blue-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended || profile.session.correctionModeActive} onClick={skipToNextProblem}>→ {tr.next}</button>
-          <button className="rounded bg-green-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={ended} onClick={submit}>↵ {tr.ok}</button>
+          <button className="rounded bg-red-700 px-3 py-2 font-bold text-white disabled:opacity-50" onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>⌫ {tr.del}</button>
+          <button className="rounded bg-blue-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={profile.session.correctionModeActive} onClick={skipToNextProblem}>→ {tr.next}</button>
+          <button className="rounded bg-green-700 px-3 py-2 font-bold text-white disabled:opacity-50" onClick={submit}>↵ {tr.ok}</button>
         </div>
       </div>}
     </section>}
