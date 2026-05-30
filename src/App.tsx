@@ -4,7 +4,7 @@ import { coinReward, explainCoinReward, explainSelectionDecision, pickWeightedPr
 import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, loadUserNames, saveLastUserName, saveProfile } from './lib/storage';
 import { playCoinSound, playDigitSound } from './lib/audio';
 import { t } from './lib/i18n';
-import { getGlobalKeyboardAction, getKeyboardTargetKind } from './lib/keyboard';
+import { getGlobalKeyboardAction, getKeyboardTargetKind, shouldSuppressFullscreenToggleKey } from './lib/keyboard';
 import { ProfileV1, Settings, ProblemStat } from './lib/types';
 import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, finalizeSessionResults, getCorrectionProgress, moveSkippedProblemToQueueEnd, shouldShowCorrectionAction } from './lib/session';
 import { getSessionEndMessage } from './lib/sessionEndMessage';
@@ -358,6 +358,7 @@ export function App() {
   }, [profile.problemStats, pendingProblemStats]);
 
   const correctionModeCompleted = profile.session.correctionSolvedKeys.length > 0 && !profile.session.correctionModeActive;
+  const correctionProgress = getCorrectionProgress(profile.session.correctionQueue, profile.session.correctionSolvedKeys);
   const correctionQueueFromAttempts = buildCorrectionQueue(profile.session.sessionAttempts);
   const showCorrectionAction = shouldShowCorrectionAction(correctionQueueFromAttempts, profile.session.correctionSolvedKeys);
   const timedOut = timed && remaining <= 0;
@@ -493,18 +494,19 @@ export function App() {
 
   return <div className="min-h-screen w-full max-w-screen-2xl mx-auto p-3 sm:p-4 md:p-6 lg:p-8 text-base sm:text-lg md:text-xl lg:text-2xl">
     <nav ref={menuRef} className="relative mb-3 flex items-center justify-between">
-      <button className="min-w-14 rounded border border-slate-700 px-3 py-2 font-bold" aria-label="Vollbild" onClick={() => { if (!document.fullscreenElement) { void document.documentElement.requestFullscreen(); return; } void document.exitFullscreen(); }}>⛶</button>
+      <button className="min-w-14 rounded border border-slate-700 px-3 py-2 font-bold" aria-label="Vollbild" onKeyDown={(event) => { if (shouldSuppressFullscreenToggleKey(event.key)) event.preventDefault(); }} onClick={() => { if (!document.fullscreenElement) { void document.documentElement.requestFullscreen(); return; } void document.exitFullscreen(); }}>⛶</button>
       <button className="min-w-14 rounded border border-slate-700 px-3 py-2 font-bold" aria-label={tr.menu} onClick={() => setMenuOpen((v) => !v)}>☰</button>
       {menuOpen && <div className="absolute right-0 top-full z-10 mt-1 flex min-w-56 flex-col rounded border border-slate-800 bg-white p-2">{(['practice', 'settings', 'stats', 'problem-stats', 'operations-overview'] as const).map((s) => <button key={s} onClick={() => {
         setProfile((p) => ({ ...p, session: { ...p.session, lastScreen: s } }));
         setMenuOpen(false);
       }}>{s === 'practice' ? tr.practice : s === 'settings' ? tr.settings : s === 'problem-stats' ? tr.problemStats : s === 'operations-overview' ? tr.operationsOverview : tr.stats}</button>)}<button style={{ background: '#c62828', color: '#fff' }} onClick={resetSession}>Reset</button></div>}
     </nav>
-    {profile.session.lastScreen === 'practice' && <section className="flex h-[calc(100vh-8rem)] flex-col gap-3 overflow-auto">
+    {profile.session.lastScreen === 'practice' && <section className={`flex h-[calc(100vh-8rem)] flex-col gap-3 overflow-auto rounded-xl p-3 ${profile.session.correctionModeActive ? 'border border-amber-200 bg-amber-50' : ''}`}>
+      {practiceUi.showCorrectionHeader && <div className="text-center text-2xl font-extrabold text-amber-900 sm:text-3xl md:text-4xl">{tr.correctionMode}: {correctionProgress.solved}/{correctionProgress.total}</div>}
       <div className="flex flex-wrap items-center justify-between gap-2">
         {practiceUi.showTimer && <div className="text-xl font-bold sm:text-2xl md:text-3xl">{timed ? `⏱ ${Math.max(0, Math.ceil(displayRemainingMs / 1000))}s` : '⏱ ∞'}</div>}
-        {practiceUi.showSessionSummary && <div className="text-xl font-bold sm:text-2xl md:text-3xl">🪙 {profile.session.coins}</div>}
-        {practiceUi.showSessionSummary && <div className="progress">📘 {profile.session.correctionModeActive ? `${tr.correctionMode}: ${getCorrectionProgress(profile.session.correctionQueue, profile.session.correctionSolvedKeys).solved}/${getCorrectionProgress(profile.session.correctionQueue, profile.session.correctionSolvedKeys).total}` : `${tr.sessionProgressLabel}: ${doneExamples}/${sessionExamples}`}</div>}
+        {practiceUi.showCoinCounter && <div className="text-xl font-bold sm:text-2xl md:text-3xl">🪙 {profile.session.coins}</div>}
+        {practiceUi.showSessionSummary && !profile.session.correctionModeActive && <div className="progress">📘 {`${tr.sessionProgressLabel}: ${doneExamples}/${sessionExamples}`}</div>}
       </div>
       {!sessionStarted && <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" style={{ background: '#2e7d32', color: '#fff' }} onClick={startPracticeSession}>{tr.startSession}</button>}
       {practiceUi.showAnswerArea && <><div className="my-2 text-center text-4xl font-bold leading-tight sm:text-5xl md:text-6xl lg:text-7xl">{profile.session.activeProblem?.expression ?? '...'}</div>
@@ -601,9 +603,9 @@ export function App() {
         <div className="grid grid-cols-10 gap-2">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button className="min-h-14 rounded border border-slate-400 px-2 py-3 text-lg font-semibold sm:min-h-16 sm:text-xl md:min-h-20 md:text-2xl" key={d} onClick={() => pushDigit(d)}>{d}</button>)}
         </div>
-        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className={`mt-2 grid grid-cols-1 gap-2 ${practiceUi.showSkipButton ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
           <button className="rounded bg-red-700 px-3 py-2 font-bold text-white disabled:opacity-50" onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>⌫ {tr.del}</button>
-          <button className="rounded bg-blue-700 px-3 py-2 font-bold text-white disabled:opacity-50" disabled={profile.session.correctionModeActive} onClick={skipToNextProblem}>→ {tr.next}</button>
+          {practiceUi.showSkipButton && <button className="rounded bg-blue-700 px-3 py-2 font-bold text-white disabled:opacity-50" onClick={skipToNextProblem}>→ {tr.next}</button>}
           <button className="rounded bg-green-700 px-3 py-2 font-bold text-white disabled:opacity-50" onClick={submit}>↵ {tr.ok}</button>
         </div>
       </div>}

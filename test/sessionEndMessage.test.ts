@@ -18,6 +18,17 @@ describe('getSessionEndMessage', () => {
     expect(message).not.toContain('vor Ablauf der Zeit');
   });
 
+  it('uses a practice-focused message instead of praise when every completed task was wrong', () => {
+    const message = getSessionEndMessage({
+      language: 'de', ended: true, timed: true, remainingMs: 45000, mistakes: 5, correctionModeCompleted: false
+    });
+
+    expect(message).toContain('5 Fehler');
+    expect(message).toContain('übe weiter');
+    expect(message).not.toContain('Nicht schlecht');
+    expect(message).not.toContain('Glückwunsch');
+  });
+
   it('keeps correction and unfinished details out of the compact message', () => {
     const message = getSessionEndMessage({
       language: 'de', ended: true, timed: false, remainingMs: 1000, mistakes: 4, correctionModeCompleted: true

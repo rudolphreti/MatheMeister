@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getGlobalKeyboardAction } from '../src/lib/keyboard';
+import { getGlobalKeyboardAction, shouldSuppressFullscreenToggleKey } from '../src/lib/keyboard';
 
 type KeyboardInput = Parameters<typeof getGlobalKeyboardAction>[0];
 
@@ -58,5 +58,13 @@ describe('global keyboard actions', () => {
   it('ignores practice shortcuts outside the practice screen', () => {
     expect(actionFor({ key: '4', practiceScreen: false })).toBeNull();
     expect(actionFor({ key: 'Enter', sessionStarted: false, ended: false, practiceScreen: false })).toBeNull();
+  });
+});
+
+describe('fullscreen keyboard behavior', () => {
+  it('suppresses keyboard activation keys on the fullscreen toggle button', () => {
+    expect(shouldSuppressFullscreenToggleKey('Enter')).toBe(true);
+    expect(shouldSuppressFullscreenToggleKey(' ')).toBe(true);
+    expect(shouldSuppressFullscreenToggleKey('f')).toBe(false);
   });
 });

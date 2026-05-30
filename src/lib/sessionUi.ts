@@ -10,6 +10,9 @@ type PracticeUiStateParams = {
 export type PracticeUiState = {
   showTimer: boolean;
   showSessionSummary: boolean;
+  showCoinCounter: boolean;
+  showCorrectionHeader: boolean;
+  showSkipButton: boolean;
   showAnswerArea: boolean;
   showAnswerControls: boolean;
   showMainEndedReview: boolean;
@@ -28,6 +31,9 @@ export function getPracticeUiState(params: PracticeUiStateParams): PracticeUiSta
   return {
     showTimer: !params.ended && !params.correctionModeActive,
     showSessionSummary: !correctionFinished,
+    showCoinCounter: !correctionFinished && !params.correctionModeActive,
+    showCorrectionHeader: params.correctionModeActive,
+    showSkipButton: sessionIsInteractive && !params.correctionModeActive,
     showAnswerArea: sessionIsInteractive,
     showAnswerControls: sessionIsInteractive,
     showMainEndedReview: params.ended && !params.correctionModeCompleted,

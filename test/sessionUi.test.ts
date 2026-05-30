@@ -12,6 +12,9 @@ describe('getPracticeUiState', () => {
   it('hides answer controls and timer after the main session ends', () => {
     expect(getPracticeUiState({ sessionStarted: true, ended: true, correctionModeActive: false, correctionModeCompleted: false })).toMatchObject({
       showTimer: false,
+      showCoinCounter: true,
+      showCorrectionHeader: false,
+      showSkipButton: false,
       showAnswerArea: false,
       showAnswerControls: false,
       showMainEndedReview: true,
@@ -19,9 +22,23 @@ describe('getPracticeUiState', () => {
     });
   });
 
+  it('keeps coins and skip available in a normal active session', () => {
+    expect(getPracticeUiState({ sessionStarted: true, ended: false, correctionModeActive: false, correctionModeCompleted: false })).toMatchObject({
+      showTimer: true,
+      showCoinCounter: true,
+      showCorrectionHeader: false,
+      showSkipButton: true,
+      showAnswerArea: true,
+      showAnswerControls: true
+    });
+  });
+
   it('hides the timer but keeps answer controls during correction mode', () => {
     expect(getPracticeUiState({ sessionStarted: true, ended: false, correctionModeActive: true, correctionModeCompleted: false })).toMatchObject({
       showTimer: false,
+      showCoinCounter: false,
+      showCorrectionHeader: true,
+      showSkipButton: false,
       showAnswerArea: true,
       showAnswerControls: true,
       showMainEndedReview: false,
@@ -32,6 +49,9 @@ describe('getPracticeUiState', () => {
   it('hides correction controls and correction lists after correction is completed', () => {
     expect(getPracticeUiState({ sessionStarted: true, ended: true, correctionModeActive: false, correctionModeCompleted: true })).toMatchObject({
       showTimer: false,
+      showCoinCounter: false,
+      showCorrectionHeader: false,
+      showSkipButton: false,
       showAnswerArea: false,
       showAnswerControls: false,
       showMainEndedReview: false,
