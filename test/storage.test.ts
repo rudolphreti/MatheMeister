@@ -1,13 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { clearAllAppData, importProfile, exportProfile, loadLastUserName, loadProfileForUser, loadUserNames, saveLastUserName, saveProfileForUser } from '../src/lib/storage';
 
-const profile = { schemaVersion:1, userName:'Anna', leaderboard:[], settings:{ mode:'timed', sessionMinutes:10, min:0, max:20, additionEnabled:true, subtractionEnabled:true, subtractionMinuendMin:0, subtractionMinuendMax:20, terms:2, soundEnabled:true, language:'de', examplesPerSession:10, excludeResultZero:false, excludePlusMinusZero:false, excludePlusMinusOne:false, customTasksText:"" }, session:{ activeProblem:null, typedAnswer:'', problemStartedAt:null, sessionStartAt:null, sessionEndsAt:null, sessionDurationMs:0, coins:0, currentStats:{correct:0,wrong:0}, lastScreen:'practice' }, problemStats:{} };
+const profile = { schemaVersion:1, userName:'Anna', leaderboard:[], settings:{ mode:'timed', sessionMinutes:10, min:0, additionMaxResult:20, additionEnabled:true, subtractionEnabled:true, subtractionDidacticGroups:['minuendGreaterThanTenSubtrahendLessThanTenResultLessThanTen', 'minuendGreaterThanTenSubtrahendLessThanTenResultGreaterThanTen', 'bothTermsAtLeastTen', 'bothTermsAtMostTen'], terms:2, soundEnabled:true, language:'de', examplesPerSession:10, excludeResultZero:false, excludePlusMinusZero:false, excludePlusMinusOne:false, customTasksText:"" }, session:{ activeProblem:null, typedAnswer:'', problemStartedAt:null, sessionStartAt:null, sessionEndsAt:null, sessionDurationMs:0, coins:0, currentStats:{correct:0,wrong:0}, lastScreen:'practice' }, problemStats:{} };
 
 describe('storage', () => {
   it('roundtrip', () => { const out = importProfile(exportProfile(profile as never)); expect(out.schemaVersion).toBe(1); });
   it('rejects invalid settings', () => {
-    const broken = { ...profile, settings: { ...profile.settings, max: 999 } };
+    const broken = { ...profile, settings: { ...profile.settings, additionMaxResult: 999 } };
     expect(() => importProfile(JSON.stringify(broken))).toThrow();
+  });
+  it('normalizes missing subtraction didactic groups to all groups', () => {
+    const legacy = { ...profile, settings: { ...profile.settings, subtractionDidacticGroups: undefined } };
+    const out = importProfile(JSON.stringify(legacy));
+    expect(out.settings.additionMaxResult).toBe(20);
+    expect(out.settings.subtractionDidacticGroups).toEqual(['minuendGreaterThanTenSubtrahendLessThanTenResultLessThanTen', 'minuendGreaterThanTenSubtrahendLessThanTenResultGreaterThanTen', 'bothTermsAtLeastTen', 'bothTermsAtMostTen']);
   });
   it('rejects invalid problemStats rows', () => {
     const broken = { ...profile, problemStats: { '1+1': { key: '1+1', expression: '1 + 1', attempts: 'oops' } } };

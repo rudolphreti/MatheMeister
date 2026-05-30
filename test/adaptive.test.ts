@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildEligibleProblemPool, calculateProblemWeight, coinReward, explainCoinReward, explainSelectionDecision, pickWeightedProblem, selectNextProblem, updateProblemStatsAfterAnswer, updateProblemStat } from '../src/lib/adaptive';
 import { buildProblemPool } from '../src/lib/math';
 
-const settings = { mode:'timed', sessionMinutes:10, min:0, max:10, additionEnabled:true, subtractionEnabled:true, subtractionMinuendMin:0, subtractionMinuendMax:10, terms:2, soundEnabled:true, language:'de', examplesPerSession:10, excludeResultZero:false, excludePlusMinusZero:false, excludePlusMinusOne:false, customTasksText:'' } as const;
+const settings = { mode:'timed', sessionMinutes:10, min:0, additionMaxResult:10, additionEnabled:true, subtractionEnabled:true, subtractionDidacticGroups:['minuendGreaterThanTenSubtrahendLessThanTenResultLessThanTen', 'minuendGreaterThanTenSubtrahendLessThanTenResultGreaterThanTen', 'bothTermsAtLeastTen', 'bothTermsAtMostTen'], terms:2, soundEnabled:true, language:'de', examplesPerSession:10, excludeResultZero:false, excludePlusMinusZero:false, excludePlusMinusOne:false, customTasksText:'' } as const;
 
 describe('adaptive', () => {
   it('coins', () => {

@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { buildProblemPool, generateProblem, parseCustomProblems } from './lib/math';
+import { ALL_SUBTRACTION_DIDACTIC_GROUPS, buildProblemPool, generateProblem, parseCustomProblems } from './lib/math';
 import { coinReward, explainCoinReward, explainSelectionDecision, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
 import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, loadUserNames, saveLastUserName, saveProfile } from './lib/storage';
 import { playCoinSound, playDigitSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { getGlobalKeyboardAction, getKeyboardTargetKind, shouldSuppressFullscreenToggleKey } from './lib/keyboard';
-import { ProfileV1, Settings, ProblemStat } from './lib/types';
+import { ProfileV1, Settings, ProblemStat, SubtractionDidacticGroup } from './lib/types';
 import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, finalizeSessionResults, getCorrectionProgress, moveSkippedProblemToQueueEnd, shouldShowCorrectionAction } from './lib/session';
 import { getSessionEndMessage } from './lib/sessionEndMessage';
 import { buildSessionReview, getPracticeUiState } from './lib/sessionUi';
 import { buildCrossingSteps, buildRowCrossCountsFromRight, buildVisualizationStepView, isBridgeToTenSubtractionType, parseSimpleSubtraction, toRows } from './lib/subtractionDidactics';
 
-const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, max: 20, additionEnabled: true, subtractionEnabled: true, subtractionMinuendMin: 0, subtractionMinuendMax: 20, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
+const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, additionMaxResult: 20, additionEnabled: true, subtractionEnabled: true, subtractionDidacticGroups: ALL_SUBTRACTION_DIDACTIC_GROUPS, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], sessionAttempts: [], correctionQueue: [], correctionSolvedKeys: [], correctionModeActive: false, lastScreen: 'practice' }, problemStats: {} });
 
 function calculateRemainingMs(profile: ProfileV1): number {
@@ -616,12 +616,7 @@ export function App() {
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="flex flex-col gap-1"><span className="text-sm font-semibold text-slate-700">{tr.modeLabel}</span><select className="h-11 rounded-lg border border-slate-300 px-3" value={profile.settings.mode} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, mode: e.target.value as Settings['mode'] } }))}><option value="timed">{tr.modeTimed}</option><option value="no-pressure">{tr.modeNoPressure}</option></select></label>
           <label className="flex flex-col gap-1"><span className="text-sm font-semibold text-slate-700">{tr.minutesLabel}</span><select className="h-11 rounded-lg border border-slate-300 px-3" value={profile.settings.sessionMinutes} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, sessionMinutes: Number(e.target.value) as Settings['sessionMinutes'] } }))}>{[1, 3, 5, 10, 15].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
-          <label className="flex flex-col gap-1"><span className="text-sm font-semibold text-slate-700">{tr.maxLabel}</span><select className="h-11 rounded-lg border border-slate-300 px-3" value={profile.settings.max} onChange={(e) => setProfile((p) => {
-            const nextMax = Number(e.target.value) as Settings['max'];
-            const nextMinuendMin = Math.min(nextMax, p.settings.subtractionMinuendMin);
-            const nextMinuendMax = Math.max(nextMinuendMin, Math.min(nextMax, p.settings.subtractionMinuendMax));
-            return { ...p, settings: { ...p.settings, max: nextMax, subtractionMinuendMin: nextMinuendMin, subtractionMinuendMax: nextMinuendMax } };
-          })}>{[5, 10, 20].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
+          {profile.settings.additionEnabled && <label className="flex flex-col gap-1"><span className="text-sm font-semibold text-slate-700">{tr.additionMaxResultLabel}</span><select className="h-11 rounded-lg border border-slate-300 px-3" value={profile.settings.additionMaxResult} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, additionMaxResult: Number(e.target.value) as Settings['additionMaxResult'] } }))}>{[5, 10, 20].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>}
           <label className="flex flex-col gap-1"><span className="text-sm font-semibold text-slate-700">{tr.termsLabel}</span><select className="h-11 rounded-lg border border-slate-300 px-3" value={profile.settings.terms} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, terms: Number(e.target.value) as Settings['terms'] } }))}>{[2, 3, 4, 5].map((m) => <option key={m} value={m}>{m}</option>)}</select></label>
         </div>
       </div>
@@ -632,17 +627,24 @@ export function App() {
           <label className="flex items-center gap-2"><input type="checkbox" checked={profile.settings.additionEnabled} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, additionEnabled: e.target.checked } }))} /> {tr.additionLabel}</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={profile.settings.subtractionEnabled} onChange={(e) => setProfile((p) => ({ ...p, settings: { ...p.settings, subtractionEnabled: e.target.checked } }))} /> {tr.subtractionLabel}</label>
         </div>
-        {profile.settings.subtractionEnabled && <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <label className="flex flex-col gap-1"><span className="text-sm text-slate-700">{tr.subtractionMinuendMinLabel}</span><input className="h-11 rounded-lg border border-slate-300 px-3" type="number" min={profile.settings.min} max={profile.settings.subtractionMinuendMax} step={1} value={profile.settings.subtractionMinuendMin} onChange={(e) => {
-            const value = Number(e.target.value);
-            if (!Number.isFinite(value)) return;
-            setProfile((p) => ({ ...p, settings: { ...p.settings, subtractionMinuendMin: Math.max(p.settings.min, Math.min(p.settings.subtractionMinuendMax, Math.floor(value))) } }));
-          }} /></label>
-          <label className="flex flex-col gap-1"><span className="text-sm text-slate-700">{tr.subtractionMinuendMaxLabel}</span><input className="h-11 rounded-lg border border-slate-300 px-3" type="number" min={profile.settings.subtractionMinuendMin} max={profile.settings.max} step={1} value={profile.settings.subtractionMinuendMax} onChange={(e) => {
-            const value = Number(e.target.value);
-            if (!Number.isFinite(value)) return;
-            setProfile((p) => ({ ...p, settings: { ...p.settings, subtractionMinuendMax: Math.max(p.settings.subtractionMinuendMin, Math.min(p.settings.max, Math.floor(value))) } }));
-          }} /></label>
+        {profile.settings.subtractionEnabled && <div className="mt-3">
+          <p className="mb-2 text-sm font-semibold text-slate-700">{tr.subtractionDidacticGroupsLabel}</p>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            {ALL_SUBTRACTION_DIDACTIC_GROUPS.map((group) => {
+              const labels: Record<SubtractionDidacticGroup, string> = {
+                minuendGreaterThanTenSubtrahendLessThanTenResultLessThanTen: tr.subtractionGroupBorrowToSingleDigit,
+                minuendGreaterThanTenSubtrahendLessThanTenResultGreaterThanTen: tr.subtractionGroupNoBorrowAboveTen,
+                bothTermsAtLeastTen: tr.subtractionGroupBothAtLeastTen,
+                bothTermsAtMostTen: tr.subtractionGroupBothAtMostTen
+              };
+              return <label className="flex items-center gap-2" key={group}><input type="checkbox" checked={profile.settings.subtractionDidacticGroups.includes(group)} onChange={(e) => setProfile((p) => {
+                const nextGroups = e.target.checked
+                  ? Array.from(new Set([...p.settings.subtractionDidacticGroups, group]))
+                  : p.settings.subtractionDidacticGroups.filter((item) => item !== group);
+                return { ...p, settings: { ...p.settings, subtractionDidacticGroups: nextGroups } };
+              })} /> {labels[group]}</label>;
+            })}
+          </div>
         </div>}
       </fieldset>
 
