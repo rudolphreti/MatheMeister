@@ -1,4 +1,5 @@
-import { ProfileV1 } from './types';
+import { ALL_SUBTRACTION_DIDACTIC_GROUPS } from './math';
+import { ProfileV1, Settings, SubtractionDidacticGroup } from './types';
 
 export const STORAGE_KEY = 'math-practice-app:v1';
 export const LAST_USER_NAME_KEY = 'math-practice-app:last-user-name';
@@ -75,17 +76,32 @@ function loadAllUserProfiles(): Record<string, ProfileV1> {
   }
 }
 
+type SettingsWithOptionalGroups = Omit<Settings, 'subtractionDidacticGroups'> & { subtractionDidacticGroups?: unknown };
+
+function isSubtractionDidacticGroup(value: unknown): value is SubtractionDidacticGroup {
+  return typeof value === 'string' && (ALL_SUBTRACTION_DIDACTIC_GROUPS as string[]).includes(value);
+}
+
+function normalizeAdditionMaxResult(settings: Pick<Settings, 'additionMaxResult'>): Settings['additionMaxResult'] {
+  return [5, 10, 20].includes(settings.additionMaxResult) ? settings.additionMaxResult : 20;
+}
+
+function normalizeSubtractionGroups(settings: SettingsWithOptionalGroups): SubtractionDidacticGroup[] {
+  if (!Array.isArray(settings.subtractionDidacticGroups)) return ALL_SUBTRACTION_DIDACTIC_GROUPS;
+  const groups = settings.subtractionDidacticGroups.filter(isSubtractionDidacticGroup);
+  return Array.from(new Set(groups));
+}
+
 function normalizeProfile(profile: ProfileV1): ProfileV1 {
-  const normalizedSubtractionMinuendMin = Math.max(profile.settings.min, Math.min(profile.settings.max, Math.floor(profile.settings.subtractionMinuendMin ?? profile.settings.min ?? 0)));
-  const normalizedSubtractionMinuendMax = Math.max(normalizedSubtractionMinuendMin, Math.min(profile.settings.max, Math.floor(profile.settings.subtractionMinuendMax ?? 20)));
+  const settings = profile.settings as SettingsWithOptionalGroups;
   return {
     ...profile,
     userName: profile.userName ?? '',
     leaderboard: (profile.leaderboard ?? []).slice().sort((a, b) => b.coins - a.coins || b.completedAt - a.completedAt),
     settings: {
-      ...profile.settings,
-      subtractionMinuendMin: normalizedSubtractionMinuendMin,
-      subtractionMinuendMax: normalizedSubtractionMinuendMax,
+      ...settings,
+      additionMaxResult: normalizeAdditionMaxResult(settings),
+      subtractionDidacticGroups: normalizeSubtractionGroups(settings),
       examplesPerSession: profile.settings.examplesPerSession ?? 10,
       excludeResultZero: profile.settings.excludeResultZero ?? false,
       excludePlusMinusZero: profile.settings.excludePlusMinusZero ?? false,
@@ -116,16 +132,14 @@ export function isProfileV1(x: unknown): x is ProfileV1 {
 
 function isSettings(x: unknown): x is ProfileV1['settings'] {
   if (!x || typeof x !== 'object') return false;
-  const y = x as ProfileV1['settings'];
+  const y = x as SettingsWithOptionalGroups;
   return (y.mode === 'timed' || y.mode === 'no-pressure')
     && [1, 3, 5, 10, 15].includes(y.sessionMinutes)
     && Number.isInteger(y.min)
-    && [5, 10, 20].includes(y.max)
+    && [5, 10, 20].includes(y.additionMaxResult)
     && typeof y.additionEnabled === 'boolean'
     && typeof y.subtractionEnabled === 'boolean'
-    && (y.subtractionMinuendMin === undefined || (Number.isInteger(y.subtractionMinuendMin) && y.subtractionMinuendMin >= y.min && y.subtractionMinuendMin <= y.max))
-    && (y.subtractionMinuendMax === undefined || (Number.isInteger(y.subtractionMinuendMax) && y.subtractionMinuendMax >= y.min && y.subtractionMinuendMax <= y.max))
-    && (y.subtractionMinuendMin === undefined || y.subtractionMinuendMax === undefined || y.subtractionMinuendMin <= y.subtractionMinuendMax)
+    && (y.subtractionDidacticGroups === undefined || (Array.isArray(y.subtractionDidacticGroups) && y.subtractionDidacticGroups.every(isSubtractionDidacticGroup)))
     && [2, 3, 4, 5].includes(y.terms)
     && typeof y.soundEnabled === 'boolean'
     && y.language === 'de'

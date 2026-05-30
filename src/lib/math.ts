@@ -1,4 +1,12 @@
-import { Problem, Settings, Operator } from './types';
+import { Problem, Settings, Operator, SubtractionDidacticGroup } from './types';
+
+const MAX_GENERATED_TERM = 20;
+export const ALL_SUBTRACTION_DIDACTIC_GROUPS: SubtractionDidacticGroup[] = [
+  'minuendGreaterThanTenSubtrahendLessThanTenResultLessThanTen',
+  'minuendGreaterThanTenSubtrahendLessThanTenResultGreaterThanTen',
+  'bothTermsAtLeastTen',
+  'bothTermsAtMostTen'
+];
 
 const rand = (n: number) => Math.floor(Math.random() * n);
 
@@ -10,6 +18,31 @@ function evalOps(nums: number[], ops: Operator[]): number {
   return acc;
 }
 
+function matchesSubtractionDidacticGroup(
+  group: SubtractionDidacticGroup,
+  minuend: number,
+  subtrahend: number,
+  result: number
+): boolean {
+  if (result < 0) return false;
+  if (group === 'minuendGreaterThanTenSubtrahendLessThanTenResultLessThanTen') {
+    return minuend > 10 && subtrahend < 10 && result < 10;
+  }
+  if (group === 'minuendGreaterThanTenSubtrahendLessThanTenResultGreaterThanTen') {
+    return minuend > 10 && subtrahend < 10 && result > 10;
+  }
+  if (group === 'bothTermsAtLeastTen') return minuend >= 10 && subtrahend >= 10;
+  return minuend <= 10 && subtrahend <= 10;
+}
+
+export function isAllowedSubtractionByDidacticGroups(
+  settings: Pick<Settings, 'subtractionDidacticGroups'>,
+  minuend: number,
+  subtrahend: number,
+  result = minuend - subtrahend
+): boolean {
+  return settings.subtractionDidacticGroups.some((group) => matchesSubtractionDidacticGroup(group, minuend, subtrahend, result));
+}
 
 function shouldExcludeProblem(settings: Settings, nums: number[], opsArr: Operator[], answer: number): boolean {
   if (settings.excludeResultZero && answer === 0) return true;
@@ -48,18 +81,25 @@ function parseCustomProblemLine(line: string): Problem | null {
   return { key: expression.replace(/ /g, ''), expression, answer };
 }
 
+function isAllowedOperationStep(settings: Settings, op: Operator, left: number, right: number, result: number): boolean {
+  if (result < settings.min) return false;
+  if (op === '+') return result <= settings.additionMaxResult;
+  return isAllowedSubtractionByDidacticGroups(settings, left, right, result);
+}
+
 export function parseCustomProblems(settings: Settings): Problem[] {
   const lines = settings.customTasksText.split('\n');
   const parsed: Problem[] = [];
   for (const line of lines) {
     const problem = parseCustomProblemLine(line);
     if (!problem) continue;
-    if (problem.expression.includes('+') && !settings.additionEnabled) continue;
-    if (problem.expression.includes('-') && !settings.subtractionEnabled) continue;
+    const op = problem.expression.includes('+') ? '+' : '-';
+    if (op === '+' && !settings.additionEnabled) continue;
+    if (op === '-' && !settings.subtractionEnabled) continue;
     const nums = problem.expression.split(' ').filter((part) => /^\d+$/.test(part)).map(Number);
-    if (nums.some((n) => n < settings.min || n > settings.max)) continue;
-    if (problem.answer < settings.min || problem.answer > settings.max) continue;
-    if (shouldExcludeProblem(settings, nums, [problem.expression.includes('+') ? '+' : '-'], problem.answer)) continue;
+    if (nums.some((n) => n < settings.min || n > MAX_GENERATED_TERM)) continue;
+    if (!isAllowedOperationStep(settings, op, nums[0], nums[1], problem.answer)) continue;
+    if (shouldExcludeProblem(settings, nums, [op], problem.answer)) continue;
     parsed.push(problem);
   }
   return Array.from(new Map(parsed.map((p) => [p.key, p])).values());
@@ -68,13 +108,11 @@ export function parseCustomProblems(settings: Settings): Problem[] {
 export function buildProblemPool(settings: Settings): Problem[] {
   const ops: Operator[] = [];
   if (settings.additionEnabled) ops.push('+');
-  if (settings.subtractionEnabled) ops.push('-');
+  if (settings.subtractionEnabled && settings.subtractionDidacticGroups.length > 0) ops.push('-');
   if (ops.length === 0) return [];
 
   const min = settings.min;
-  const max = settings.max;
-  const subtractionMinuendMin = Math.max(min, Math.min(max, Math.floor(settings.subtractionMinuendMin)));
-  const subtractionMinuendMax = Math.max(subtractionMinuendMin, Math.min(max, Math.floor(settings.subtractionMinuendMax)));
+  const maxTerm = MAX_GENERATED_TERM;
   const terms = settings.terms;
   const problems: Problem[] = [];
 
@@ -87,11 +125,11 @@ export function buildProblemPool(settings: Settings): Problem[] {
       function genOps(i: number) {
         if (i === opCount) {
           let acc = nums[0];
-          if (acc < min || acc > max) return;
+          if (acc < min || acc > maxTerm) return;
           for (let j = 0; j < opCount; j++) {
-            if (opsArr[j] === '-' && (acc < subtractionMinuendMin || acc > subtractionMinuendMax)) return;
-            acc = opsArr[j] === '+' ? acc + nums[j + 1] : acc - nums[j + 1];
-            if (acc < min || acc > max) return;
+            const nextAcc = opsArr[j] === '+' ? acc + nums[j + 1] : acc - nums[j + 1];
+            if (!isAllowedOperationStep(settings, opsArr[j], acc, nums[j + 1], nextAcc)) return;
+            acc = nextAcc;
           }
           const answer = evalOps(nums, opsArr);
           if (shouldExcludeProblem(settings, nums, opsArr, answer)) return;
@@ -107,7 +145,7 @@ export function buildProblemPool(settings: Settings): Problem[] {
       genOps(0);
       return;
     }
-    for (let n = min; n <= max; n++) {
+    for (let n = min; n <= maxTerm; n++) {
       nums[idx] = n;
       backtrack(idx + 1);
     }
@@ -116,18 +154,15 @@ export function buildProblemPool(settings: Settings): Problem[] {
   if (terms <= 3) backtrack(0);
   else {
     for (let i = 0; i < 500; i++) {
-      for (let j = 0; j < terms; j++) nums[j] = min + rand(max - min + 1);
+      for (let j = 0; j < terms; j++) nums[j] = min + rand(maxTerm - min + 1);
       const opCount = terms - 1;
       const opsArr = new Array<Operator>(opCount).fill('+').map(() => ops[rand(ops.length)]);
       let acc = nums[0];
-      let ok = acc >= min && acc <= max;
+      let ok = acc >= min && acc <= maxTerm;
       for (let j = 0; j < opCount && ok; j++) {
-        if (opsArr[j] === '-' && (acc < subtractionMinuendMin || acc > subtractionMinuendMax)) {
-          ok = false;
-          break;
-        }
-        acc = opsArr[j] === '+' ? acc + nums[j + 1] : acc - nums[j + 1];
-        ok = acc >= min && acc <= max;
+        const nextAcc = opsArr[j] === '+' ? acc + nums[j + 1] : acc - nums[j + 1];
+        ok = isAllowedOperationStep(settings, opsArr[j], acc, nums[j + 1], nextAcc);
+        acc = nextAcc;
       }
       if (ok) {
         const answer = evalOps(nums, opsArr);

@@ -1,16 +1,20 @@
 export type Mode = 'timed' | 'no-pressure';
 export type Language = 'de';
 export type Operator = '+' | '-';
+export type SubtractionDidacticGroup =
+  | 'minuendGreaterThanTenSubtrahendLessThanTenResultLessThanTen'
+  | 'minuendGreaterThanTenSubtrahendLessThanTenResultGreaterThanTen'
+  | 'bothTermsAtLeastTen'
+  | 'bothTermsAtMostTen';
 
 export interface Settings {
   mode: Mode;
   sessionMinutes: 1 | 3 | 5 | 10 | 15;
   min: number;
-  max: 5 | 10 | 20;
+  additionMaxResult: 5 | 10 | 20;
   additionEnabled: boolean;
   subtractionEnabled: boolean;
-  subtractionMinuendMin: number;
-  subtractionMinuendMax: number;
+  subtractionDidacticGroups: readonly SubtractionDidacticGroup[];
   terms: 2 | 3 | 4 | 5;
   soundEnabled: boolean;
   language: Language;
