@@ -22,8 +22,8 @@ describe('global keyboard actions', () => {
     expect(actionFor({ key: 'Enter', nameConfirmed: false, sessionStarted: false, ended: false })).toEqual({ type: 'confirmUser' });
   });
 
-  it('starts the practice session with Enter before the workspace is focused', () => {
-    expect(actionFor({ key: 'Enter', sessionStarted: false, ended: false })).toEqual({ type: 'startSession' });
+  it('starts the practice session with Enter even when a previously clicked button is still focused', () => {
+    expect(actionFor({ key: 'Enter', sessionStarted: false, ended: false, targetKind: 'button' })).toEqual({ type: 'startSession' });
   });
 
   it('starts correction with Enter when the main session has mistakes to correct', () => {
@@ -38,12 +38,23 @@ describe('global keyboard actions', () => {
     expect(actionFor({ key: '7' })).toEqual({ type: 'appendDigit', digit: '7' });
     expect(actionFor({ key: 'Backspace' })).toEqual({ type: 'deleteDigit' });
     expect(actionFor({ key: 'Enter' })).toEqual({ type: 'submitAnswer' });
+    expect(actionFor({ key: 'Enter', targetKind: 'button' })).toEqual({ type: 'submitAnswer' });
   });
 
   it('does not hijack text inputs or ended sessions without a visible end action', () => {
     expect(actionFor({ key: '5', targetKind: 'editable' })).toBeNull();
     expect(actionFor({ key: '5', ended: true })).toBeNull();
     expect(actionFor({ key: 'Enter', ended: true })).toBeNull();
+  });
+
+  it('uses end-screen Enter actions even when a button keeps focus', () => {
+    expect(actionFor({ key: 'Enter', ended: true, targetKind: 'button', canStartCorrection: true, canRestartSession: true })).toEqual({ type: 'startCorrection' });
+    expect(actionFor({ key: 'Enter', ended: true, targetKind: 'button', canRestartSession: true })).toEqual({ type: 'restartSession' });
+  });
+
+  it('suppresses Enter on focused buttons when the current context has no Enter action', () => {
+    expect(actionFor({ key: 'Enter', targetKind: 'button', practiceScreen: false })).toEqual({ type: 'suppress' });
+    expect(actionFor({ key: 'Enter', targetKind: 'button', ended: true })).toEqual({ type: 'suppress' });
   });
 
   it('suppresses Enter actions while the menu is open', () => {

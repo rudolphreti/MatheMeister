@@ -35,34 +35,36 @@ export function getKeyboardTargetKind(target: EventTarget | null): KeyboardTarge
 }
 
 export function getGlobalKeyboardAction(input: GlobalKeyboardActionInput): GlobalKeyboardAction | null {
+  const isEnter = input.key === 'Enter';
+  const isButtonEnter = isEnter && input.targetKind === 'button';
+
   if (input.menuOpen) {
     if (input.key === 'Escape') return { type: 'closeMenu' };
-    if (input.key === 'Enter') return { type: 'suppress' };
+    if (isEnter) return { type: 'suppress' };
     return null;
   }
 
   if (input.targetKind === 'editable') return null;
 
   if (!input.nameConfirmed) {
-    return input.key === 'Enter' ? { type: 'confirmUser' } : null;
+    return isEnter ? { type: 'confirmUser' } : null;
   }
 
-  if (!input.practiceScreen) return null;
+  if (!input.practiceScreen) return isButtonEnter ? { type: 'suppress' } : null;
 
   if (!input.sessionStarted) {
-    if (input.targetKind === 'button') return null;
-    return input.key === 'Enter' ? { type: 'startSession' } : null;
+    return isEnter ? { type: 'startSession' } : null;
   }
 
   if (input.ended) {
-    if (input.key !== 'Enter' || input.targetKind === 'button') return null;
+    if (!isEnter) return null;
     if (input.canStartCorrection) return { type: 'startCorrection' };
     if (input.canRestartSession) return { type: 'restartSession' };
-    return null;
+    return isButtonEnter ? { type: 'suppress' } : null;
   }
 
   if (/^[0-9]$/.test(input.key)) return { type: 'appendDigit', digit: input.key };
   if (input.key === 'Backspace') return { type: 'deleteDigit' };
-  if (input.key === 'Enter' && input.targetKind !== 'button') return { type: 'submitAnswer' };
+  if (isEnter) return { type: 'submitAnswer' };
   return null;
 }
