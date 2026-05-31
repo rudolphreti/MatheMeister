@@ -29,6 +29,36 @@ export interface VisualizationStepView {
   redCrossed: number;
 }
 
+export type VisualizationBallColor = 'blue' | 'red';
+
+export interface VisualizationCrossState {
+  blueCrossed: number;
+  redCrossed: number;
+}
+
+export function isVisualizationStepComplete(
+  state: VisualizationCrossState,
+  target: VisualizationStepView
+): boolean {
+  return state.blueCrossed === target.blueCrossed && state.redCrossed === target.redCrossed;
+}
+
+export function applyVisualizationBallCross(
+  state: VisualizationCrossState,
+  target: VisualizationStepView,
+  color: VisualizationBallColor,
+  positionFromRight: number
+): VisualizationCrossState {
+  const current = color === 'blue' ? state.blueCrossed : state.redCrossed;
+  const expected = color === 'blue' ? target.blueCrossed : target.redCrossed;
+  if (current >= expected) return state;
+  if (positionFromRight !== current) return state;
+
+  return color === 'blue'
+    ? { ...state, blueCrossed: state.blueCrossed + 1 }
+    : { ...state, redCrossed: state.redCrossed + 1 };
+}
+
 export function buildCrossingSteps(minuend: number, subtrahend: number): CrossingStep[] {
   const steps: CrossingStep[] = [];
   const toTen = Math.max(0, minuend - 10);

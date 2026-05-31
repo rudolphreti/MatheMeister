@@ -9,7 +9,7 @@ import { ProfileV1, Settings, ProblemStat, SubtractionDidacticGroup } from './li
 import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, finalizeSessionResults, getCorrectionProgress, moveSkippedProblemToQueueEnd, shouldShowCorrectionAction } from './lib/session';
 import { getSessionEndMessage } from './lib/sessionEndMessage';
 import { buildSessionReview, getPracticeUiState } from './lib/sessionUi';
-import { buildCrossingSteps, buildRowCrossCountsFromRight, buildVisualizationStepView, isBridgeToTenSubtractionType, parseSimpleSubtraction, toRows } from './lib/subtractionDidactics';
+import { applyVisualizationBallCross, buildCrossingSteps, buildRowCrossCountsFromRight, buildVisualizationStepView, isBridgeToTenSubtractionType, isVisualizationStepComplete, parseSimpleSubtraction, toRows } from './lib/subtractionDidactics';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, additionMaxResult: 20, additionEnabled: true, subtractionEnabled: true, subtractionDidacticGroups: ALL_SUBTRACTION_DIDACTIC_GROUPS, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], sessionAttempts: [], correctionQueue: [], correctionSolvedKeys: [], correctionModeActive: false, lastScreen: 'practice' }, problemStats: {} });
@@ -19,7 +19,6 @@ function calculateRemainingMs(profile: ProfileV1): number {
   if (!profile.session.sessionEndsAt) return profile.session.sessionDurationMs;
   return Math.max(0, profile.session.sessionEndsAt - Date.now());
 }
-
 
 function sortLeaderboard(rows: ProfileV1['leaderboard']) {
   return rows.slice().sort((a, b) => b.coins - a.coins || b.completedAt - a.completedAt);
@@ -36,7 +35,6 @@ function sortStats(stats: Record<string, ProblemStat>): ProblemStat[] {
     || a.key.localeCompare(b.key));
 }
 
-
 function toGrayShade(ratio: number): string {
   const clamped = Math.max(0, Math.min(1, ratio));
   const value = Math.round(250 - (120 * clamped));
@@ -48,7 +46,6 @@ function toErrorRedShade(ratio: number): string {
   const channel = Math.round(50 + 140 * clamped);
   return `rgb(${channel}, 0, 0)`;
 }
-
 
 function parseBinaryOperation(expression: string): { left: number; right: number; operator: '+' | '-'; result: number } | null {
   const match = expression.match(/^\s*(\d+)\s*([+-])\s*(\d+)(?:\s*=\s*(-?\d+))?\s*$/);
@@ -76,6 +73,7 @@ export function App() {
   const [sessionFinalized, setSessionFinalized] = useState(false);
   const [visualizationOpen, setVisualizationOpen] = useState(false);
   const [visualizationStep, setVisualizationStep] = useState(0);
+  const [visualizationCrossState, setVisualizationCrossState] = useState({ blueCrossed: 0, redCrossed: 0 });
   const menuRef = useRef<HTMLElement | null>(null);
   const [problemQueue, setProblemQueue] = useState<string[]>([]);
   const tr = t(profile.settings.language);
@@ -95,6 +93,13 @@ export function App() {
     () => didacticSubtraction ? buildVisualizationStepView(didacticSubtraction.minuend, didacticSubtraction.subtrahend, visualizationStep) : null,
     [didacticSubtraction, visualizationStep]
   );
+  const visualizationCrossingActive = visualizationStep > 0 && visualizationStep <= crossingSteps.length;
+  const visualizationStepComplete = !activeVisualizationView || !visualizationCrossingActive
+    ? true
+    : isVisualizationStepComplete(visualizationCrossState, activeVisualizationView);
+  const displayedVisualizationView = activeVisualizationView && visualizationCrossingActive
+    ? { ...activeVisualizationView, blueCrossed: visualizationCrossState.blueCrossed, redCrossed: visualizationCrossState.redCrossed }
+    : activeVisualizationView;
   const allProblems = useMemo(() => {
     const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
     return Array.from(combinedPoolMap.values());
@@ -142,7 +147,6 @@ export function App() {
     });
   }, [allProblems]);
 
-
   useEffect(() => {
     if (!profile.session.activeProblem) return;
     const allowedProblems = allProblems;
@@ -159,6 +163,7 @@ export function App() {
   useEffect(() => {
     setVisualizationOpen(false);
     setVisualizationStep(0);
+    setVisualizationCrossState({ blueCrossed: 0, redCrossed: 0 });
   }, [profile.session.activeProblem?.key]);
   useEffect(() => {
     function onOverlayEscape(event: KeyboardEvent) {
@@ -208,14 +213,27 @@ export function App() {
     if (Object.keys(pendingProblemStats).length > 0) setPendingProblemStats({});
   }, [ended, pendingProblemStats, profile.leaderboard, profile.problemStats, profile.session.coins, profile.session.sessionAttempts.length, profile.userName, sessionFinalized]);
 
-
   function pushDigit(digit: string) {
     if (ended) return;
     playDigitSound(profile.settings.soundEnabled);
     setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: (p.session.typedAnswer + digit).slice(0, 3) } }));
   }
 
+  function getBallPositionFromRight(rows: number[], rowIndex: number, ballIndex: number): number {
+    const ballsAfterRow = rows.slice(rowIndex + 1).reduce((sum, balls) => sum + balls, 0);
+    return ballsAfterRow + rows[rowIndex] - 1 - ballIndex;
+  }
 
+  function crossVisualizationBall(color: 'blue' | 'red', rows: number[], rowIndex: number, ballIndex: number) {
+    if (!activeVisualizationView || !visualizationCrossingActive) return;
+    const positionFromRight = getBallPositionFromRight(rows, rowIndex, ballIndex);
+    setVisualizationCrossState((current) => applyVisualizationBallCross(current, activeVisualizationView, color, positionFromRight));
+  }
+
+  function moveVisualizationStep(nextStep: number) {
+    setVisualizationStep(nextStep);
+    setVisualizationCrossState({ blueCrossed: 0, redCrossed: 0 });
+  }
 
   function restartSession() {
     const durationMs = profile.settings.sessionMinutes * 60000;
@@ -385,7 +403,6 @@ export function App() {
     correctionModeCompleted
   });
 
-
   const handleConfirmUser = () => {
     const typedName = nameInput.trim();
     const selectedName = selectedUserName.trim();
@@ -511,11 +528,6 @@ export function App() {
       {!sessionStarted && <button className="rounded bg-green-700 px-3 py-2 font-bold text-white" style={{ background: '#2e7d32', color: '#fff' }} onClick={startPracticeSession}>{tr.startSession}</button>}
       {practiceUi.showAnswerArea && <><div className="my-2 text-center text-4xl font-bold leading-tight sm:text-5xl md:text-6xl lg:text-7xl">{profile.session.activeProblem?.expression ?? '...'}</div>
       <div className="min-h-20 rounded border-2 border-black p-3 text-center text-3xl sm:text-4xl md:text-5xl">{profile.session.typedAnswer || '0'}</div></>}
-      {practiceUi.showAnswerArea && didacticSubtraction && <button className="rounded bg-indigo-700 px-3 py-2 font-bold text-white" onClick={() => {
-        setVisualizationStep(0);
-        setVisualizationOpen(true);
-      }}>🔵🔴 {tr.visualize}</button>}
-
       {practiceUi.showAnswerArea && didacticSubtraction && visualizationOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-3">
         <div className="w-full max-w-4xl rounded-xl border border-slate-300 bg-white p-4">
           <div className="mb-2 flex items-start justify-between gap-2">
@@ -532,32 +544,26 @@ export function App() {
           </div>
           <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <p className="mb-1 font-semibold">Blau: {activeVisualizationView?.blueVisible ?? didacticSubtraction.minuend}</p>
-            {toRows(activeVisualizationView?.blueVisible ?? didacticSubtraction.minuend).map((balls, rowIndex) => <div key={`blue-row-${rowIndex}`} className="mb-1 flex flex-wrap gap-1">
+            <p className="mb-1 font-semibold">Blau: {displayedVisualizationView?.blueVisible ?? didacticSubtraction.minuend}</p>
+            {toRows(displayedVisualizationView?.blueVisible ?? didacticSubtraction.minuend).map((balls, rowIndex, rows) => <div key={`blue-row-${rowIndex}`} className="mb-1 flex flex-wrap gap-1">
               {Array.from({ length: balls }).map((_, i) => {
-                const stepCrossed = visualizationStep > 0 && visualizationStep <= crossingSteps.length
-                  ? buildRowCrossCountsFromRight(
-                    toRows(activeVisualizationView?.blueVisible ?? didacticSubtraction.minuend),
-                    activeVisualizationView?.blueCrossed ?? 0
-                  )[rowIndex]
+                const stepCrossed = visualizationCrossingActive || visualizationStep > crossingSteps.length
+                  ? buildRowCrossCountsFromRight(rows, displayedVisualizationView?.blueCrossed ?? 0)[rowIndex]
                   : 0;
                 const crossed = i >= balls - stepCrossed;
-                return <span key={`blue-${rowIndex}-${i}`} className={crossed ? 'line-through decoration-2 decoration-black/80' : ''}>🔵</span>;
+                return <button type="button" key={`blue-${rowIndex}-${i}`} aria-label={`Blaue Kugel ${i + 1}`} className={`rounded px-0.5 text-2xl ${crossed ? 'line-through decoration-2 decoration-black/80' : ''}`} disabled={!visualizationCrossingActive || crossed} onClick={() => crossVisualizationBall('blue', rows, rowIndex, i)}>🔵</button>;
               })}
             </div>)}
           </div>
           <div>
-            <p className="mb-1 font-semibold">Rot: {activeVisualizationView?.redVisible ?? didacticSubtraction.subtrahend}</p>
-            {toRows(activeVisualizationView?.redVisible ?? didacticSubtraction.subtrahend).map((balls, rowIndex) => <div key={`red-row-${rowIndex}`} className="mb-1 flex flex-wrap gap-1">
+            <p className="mb-1 font-semibold">Rot: {displayedVisualizationView?.redVisible ?? didacticSubtraction.subtrahend}</p>
+            {toRows(displayedVisualizationView?.redVisible ?? didacticSubtraction.subtrahend).map((balls, rowIndex, rows) => <div key={`red-row-${rowIndex}`} className="mb-1 flex flex-wrap gap-1">
               {Array.from({ length: balls }).map((_, i) => {
-                const stepCrossed = visualizationStep > 0 && visualizationStep <= crossingSteps.length
-                  ? buildRowCrossCountsFromRight(
-                    toRows(activeVisualizationView?.redVisible ?? didacticSubtraction.subtrahend),
-                    activeVisualizationView?.redCrossed ?? 0
-                  )[rowIndex]
+                const stepCrossed = visualizationCrossingActive || visualizationStep > crossingSteps.length
+                  ? buildRowCrossCountsFromRight(rows, displayedVisualizationView?.redCrossed ?? 0)[rowIndex]
                   : 0;
                 const crossed = i >= balls - stepCrossed;
-                return <span key={`red-${rowIndex}-${i}`} className={crossed ? 'line-through decoration-2 decoration-black/80' : ''}>🔴</span>;
+                return <button type="button" key={`red-${rowIndex}-${i}`} aria-label={`Rote Kugel ${i + 1}`} className={`rounded px-0.5 text-2xl ${crossed ? 'line-through decoration-2 decoration-black/80' : ''}`} disabled={!visualizationCrossingActive || crossed} onClick={() => crossVisualizationBall('red', rows, rowIndex, i)}>🔴</button>;
               })}
             </div>)}
           </div>
@@ -568,8 +574,8 @@ export function App() {
             {visualizationStep === crossingSteps.length + 1 && tr.visualizationQuestion}
           </p>
           <div className="mt-3 flex justify-end gap-2">
-            <button className="rounded border border-slate-400 px-3 py-2 font-semibold disabled:opacity-50" disabled={visualizationStep === 0} onClick={() => setVisualizationStep((v) => Math.max(0, v - 1))}>{tr.back}</button>
-            <button className="rounded bg-blue-700 px-3 py-2 font-semibold text-white disabled:opacity-50" disabled={visualizationStep >= crossingSteps.length + 1} onClick={() => setVisualizationStep((v) => v + 1)}>{tr.next}</button>
+            <button className="rounded border border-slate-400 px-3 py-2 font-semibold disabled:opacity-50" disabled={visualizationStep === 0} onClick={() => moveVisualizationStep(Math.max(0, visualizationStep - 1))}>{tr.back}</button>
+            <button className="rounded bg-blue-700 px-3 py-2 font-semibold text-white disabled:opacity-50" disabled={visualizationStep >= crossingSteps.length + 1 || !visualizationStepComplete} onClick={() => moveVisualizationStep(visualizationStep + 1)}>{tr.next}</button>
           </div>
         </div>
       </div>}
@@ -603,8 +609,13 @@ export function App() {
         <div className="grid grid-cols-10 gap-2">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => <button className="min-h-14 rounded border border-slate-400 px-2 py-3 text-lg font-semibold sm:min-h-16 sm:text-xl md:min-h-20 md:text-2xl" key={d} onClick={() => pushDigit(d)}>{d}</button>)}
         </div>
-        <div className={`mt-2 grid grid-cols-1 gap-2 ${practiceUi.showSkipButton ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+        <div className={`mt-2 grid grid-cols-1 gap-2 ${practiceUi.showSkipButton && didacticSubtraction ? 'sm:grid-cols-4' : practiceUi.showSkipButton || didacticSubtraction ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
           <button className="rounded bg-red-700 px-3 py-2 font-bold text-white disabled:opacity-50" onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>⌫ {tr.del}</button>
+          {didacticSubtraction && <button className="rounded bg-indigo-700 px-3 py-2 font-bold text-white" onClick={() => {
+            setVisualizationStep(0);
+            setVisualizationCrossState({ blueCrossed: 0, redCrossed: 0 });
+            setVisualizationOpen(true);
+          }}>🔵🔴 {tr.visualize}</button>}
           {practiceUi.showSkipButton && <button className="rounded bg-blue-700 px-3 py-2 font-bold text-white disabled:opacity-50" onClick={skipToNextProblem}>→ {tr.next}</button>}
           <button className="rounded bg-green-700 px-3 py-2 font-bold text-white disabled:opacity-50" onClick={submit}>↵ {tr.ok}</button>
         </div>

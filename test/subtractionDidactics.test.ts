@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCrossingSteps, buildRowCrossCountsFromRight, buildVisualizationStepView, isBridgeToTenSubtractionType, parseSimpleSubtraction, toRows } from '../src/lib/subtractionDidactics';
+import { applyVisualizationBallCross, buildCrossingSteps, buildRowCrossCountsFromRight, buildVisualizationStepView, isBridgeToTenSubtractionType, isVisualizationStepComplete, parseSimpleSubtraction, toRows } from '../src/lib/subtractionDidactics';
 
 describe('subtraction didactics', () => {
   it('detects bridge-to-ten subtraction type', () => {
@@ -36,6 +36,24 @@ describe('subtraction didactics', () => {
     expect(buildRowCrossCountsFromRight([10, 7], 7)).toEqual([0, 7]);
     expect(buildRowCrossCountsFromRight([10, 7], 9)).toEqual([2, 7]);
     expect(buildRowCrossCountsFromRight([9], 7)).toEqual([7]);
+  });
+
+  it('allows interactive crossing only from right to left up to the current step target', () => {
+    const stepTarget = buildVisualizationStepView(17, 9, 1);
+    const emptyState = { blueCrossed: 0, redCrossed: 0 };
+
+    expect(applyVisualizationBallCross(emptyState, stepTarget, 'blue', 1)).toEqual(emptyState);
+    expect(applyVisualizationBallCross(emptyState, stepTarget, 'blue', 0)).toEqual({ blueCrossed: 1, redCrossed: 0 });
+
+    const fullBlue = { blueCrossed: 7, redCrossed: 0 };
+    expect(applyVisualizationBallCross(fullBlue, stepTarget, 'blue', 7)).toEqual(fullBlue);
+  });
+
+  it('marks visualization step complete only when the user crossed the expected amounts', () => {
+    const stepTarget = buildVisualizationStepView(17, 9, 1);
+
+    expect(isVisualizationStepComplete({ blueCrossed: 7, redCrossed: 6 }, stepTarget)).toBe(false);
+    expect(isVisualizationStepComplete({ blueCrossed: 7, redCrossed: 7 }, stepTarget)).toBe(true);
   });
 
   it('builds step-3 view with 10 blue visible and all red crossed', () => {
