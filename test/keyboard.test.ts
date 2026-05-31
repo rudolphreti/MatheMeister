@@ -73,8 +73,8 @@ describe('global keyboard actions', () => {
 });
 
 describe('fullscreen keyboard behavior', () => {
-  it('suppresses keyboard activation keys on the fullscreen toggle button', () => {
-    expect(shouldSuppressFullscreenToggleKey('Enter')).toBe(true);
+  it('lets Enter reach the global keyboard context after the fullscreen button was clicked', () => {
+    expect(shouldSuppressFullscreenToggleKey('Enter')).toBe(false);
     expect(shouldSuppressFullscreenToggleKey(' ')).toBe(true);
     expect(shouldSuppressFullscreenToggleKey('f')).toBe(false);
   });

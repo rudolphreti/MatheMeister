@@ -1,7 +1,7 @@
 export type KeyboardTargetKind = 'page' | 'editable' | 'button';
 
 export function shouldSuppressFullscreenToggleKey(key: string): boolean {
-  return key === 'Enter' || key === ' ';
+  return key === ' ';
 }
 
 export type GlobalKeyboardAction =
