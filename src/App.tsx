@@ -2,14 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ALL_SUBTRACTION_DIDACTIC_GROUPS, buildProblemPool, generateProblem, parseCustomProblems } from './lib/math';
 import { coinReward, explainCoinReward, explainSelectionDecision, pickWeightedProblem, updateProblemStat } from './lib/adaptive';
 import { clearAllAppData, exportProfile, importProfile, loadLastUserName, loadProfile, loadProfileForUser, loadUserNames, saveLastUserName, saveProfile } from './lib/storage';
-import { playCoinSound, playDigitSound } from './lib/audio';
+import { playCoinSound, playDigitSound, playVisualizationCrossSound, playVisualizationStepCorrectSound, playVisualizationStepWrongSound } from './lib/audio';
 import { t } from './lib/i18n';
 import { getGlobalKeyboardAction, getKeyboardTargetKind, shouldSuppressFullscreenToggleKey } from './lib/keyboard';
 import { ProfileV1, Settings, ProblemStat, SubtractionDidacticGroup } from './lib/types';
 import { appendAlgorithmLog, blockProblemForCurrentSession, buildCorrectionQueue, buildNextProblemPool, buildProfileForSessionReset, buildSessionStateBeforeStart, buildSessionStateForUserStart, ensureActiveProblemIsAllowed, finalizeSessionResults, getCorrectionProgress, moveSkippedProblemToQueueEnd, shouldShowCorrectionAction } from './lib/session';
 import { getSessionEndMessage } from './lib/sessionEndMessage';
 import { buildSessionReview, getPracticeUiState } from './lib/sessionUi';
-import { applyVisualizationBallCross, buildCrossingSteps, buildRowCrossCountsFromRight, buildVisualizationStepView, isBridgeToTenSubtractionType, isVisualizationStepComplete, parseSimpleSubtraction, toRows } from './lib/subtractionDidactics';
+import { buildCrossingSteps, buildRowCrossCountsFromRight, buildVisualizationStepView, isBridgeToTenSubtractionType, isVisualizationStepValid, parseSimpleSubtraction, toRows, toggleVisualizationBallCross } from './lib/subtractionDidactics';
 
 const defaultSettings: Settings = { mode: 'timed', sessionMinutes: 10, min: 0, additionMaxResult: 20, additionEnabled: true, subtractionEnabled: true, subtractionDidacticGroups: ALL_SUBTRACTION_DIDACTIC_GROUPS, terms: 2, soundEnabled: true, language: 'de', examplesPerSession: 10, excludeResultZero: false, excludePlusMinusZero: false, excludePlusMinusOne: false, customTasksText: '' };
 const mkDefault = (): ProfileV1 => ({ schemaVersion: 1, userName: '', leaderboard: [], settings: defaultSettings, session: { activeProblem: null, typedAnswer: '', problemStartedAt: null, sessionStartAt: null, sessionEndsAt: null, sessionDurationMs: 600000, coins: 0, currentStats: { correct: 0, wrong: 0 }, blockedProblemKeys: [], algorithmLog: [], sessionAttempts: [], correctionQueue: [], correctionSolvedKeys: [], correctionModeActive: false, lastScreen: 'practice' }, problemStats: {} });
@@ -73,7 +73,8 @@ export function App() {
   const [sessionFinalized, setSessionFinalized] = useState(false);
   const [visualizationOpen, setVisualizationOpen] = useState(false);
   const [visualizationStep, setVisualizationStep] = useState(0);
-  const [visualizationCrossState, setVisualizationCrossState] = useState({ blueCrossed: 0, redCrossed: 0 });
+  const [visualizationCrossState, setVisualizationCrossState] = useState({ blueCrossedPositions: [] as number[], redCrossedPositions: [] as number[] });
+  const [visualizationMessage, setVisualizationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const menuRef = useRef<HTMLElement | null>(null);
   const [problemQueue, setProblemQueue] = useState<string[]>([]);
   const tr = t(profile.settings.language);
@@ -96,9 +97,9 @@ export function App() {
   const visualizationCrossingActive = visualizationStep > 0 && visualizationStep <= crossingSteps.length;
   const visualizationStepComplete = !activeVisualizationView || !visualizationCrossingActive
     ? true
-    : isVisualizationStepComplete(visualizationCrossState, activeVisualizationView);
+    : isVisualizationStepValid(visualizationCrossState, activeVisualizationView);
   const displayedVisualizationView = activeVisualizationView && visualizationCrossingActive
-    ? { ...activeVisualizationView, blueCrossed: visualizationCrossState.blueCrossed, redCrossed: visualizationCrossState.redCrossed }
+    ? { ...activeVisualizationView, blueCrossed: visualizationCrossState.blueCrossedPositions.length, redCrossed: visualizationCrossState.redCrossedPositions.length }
     : activeVisualizationView;
   const allProblems = useMemo(() => {
     const combinedPoolMap = new Map([...pool, ...customProblems].map((problem) => [problem.key, problem]));
@@ -163,7 +164,8 @@ export function App() {
   useEffect(() => {
     setVisualizationOpen(false);
     setVisualizationStep(0);
-    setVisualizationCrossState({ blueCrossed: 0, redCrossed: 0 });
+    setVisualizationCrossState({ blueCrossedPositions: [], redCrossedPositions: [] });
+    setVisualizationMessage(null);
   }, [profile.session.activeProblem?.key]);
   useEffect(() => {
     function onOverlayEscape(event: KeyboardEvent) {
@@ -225,14 +227,28 @@ export function App() {
   }
 
   function crossVisualizationBall(color: 'blue' | 'red', rows: number[], rowIndex: number, ballIndex: number) {
-    if (!activeVisualizationView || !visualizationCrossingActive) return;
+    if (!visualizationCrossingActive) return;
     const positionFromRight = getBallPositionFromRight(rows, rowIndex, ballIndex);
-    setVisualizationCrossState((current) => applyVisualizationBallCross(current, activeVisualizationView, color, positionFromRight));
+    playVisualizationCrossSound(profile.settings.soundEnabled);
+    setVisualizationMessage(null);
+    setVisualizationCrossState((current) => toggleVisualizationBallCross(current, color, positionFromRight));
   }
 
   function moveVisualizationStep(nextStep: number) {
     setVisualizationStep(nextStep);
-    setVisualizationCrossState({ blueCrossed: 0, redCrossed: 0 });
+    setVisualizationCrossState({ blueCrossedPositions: [], redCrossedPositions: [] });
+    setVisualizationMessage(null);
+  }
+
+  function handleVisualizationNext() {
+    if (visualizationStep >= crossingSteps.length + 1) return;
+    if (visualizationCrossingActive && !visualizationStepComplete) {
+      playVisualizationStepWrongSound(profile.settings.soundEnabled);
+      setVisualizationMessage({ type: 'error', text: tr.visualizationInvalidStep });
+      return;
+    }
+    if (visualizationCrossingActive) playVisualizationStepCorrectSound(profile.settings.soundEnabled);
+    moveVisualizationStep(visualizationStep + 1);
   }
 
   function restartSession() {
@@ -550,8 +566,11 @@ export function App() {
                 const stepCrossed = visualizationCrossingActive || visualizationStep > crossingSteps.length
                   ? buildRowCrossCountsFromRight(rows, displayedVisualizationView?.blueCrossed ?? 0)[rowIndex]
                   : 0;
-                const crossed = i >= balls - stepCrossed;
-                return <button type="button" key={`blue-${rowIndex}-${i}`} aria-label={`Blaue Kugel ${i + 1}`} className={`rounded px-0.5 text-2xl ${crossed ? 'line-through decoration-2 decoration-black/80' : ''}`} disabled={!visualizationCrossingActive || crossed} onClick={() => crossVisualizationBall('blue', rows, rowIndex, i)}>🔵</button>;
+                const positionFromRight = getBallPositionFromRight(rows, rowIndex, i);
+                const crossed = visualizationCrossingActive
+                  ? visualizationCrossState.blueCrossedPositions.includes(positionFromRight)
+                  : i >= balls - stepCrossed;
+                return <button type="button" key={`blue-${rowIndex}-${i}`} aria-label={`Blaue Kugel ${i + 1}`} className={`rounded px-0.5 text-2xl ${crossed ? 'line-through decoration-2 decoration-black/80' : ''}`} disabled={!visualizationCrossingActive} onClick={() => crossVisualizationBall('blue', rows, rowIndex, i)}>🔵</button>;
               })}
             </div>)}
           </div>
@@ -562,8 +581,11 @@ export function App() {
                 const stepCrossed = visualizationCrossingActive || visualizationStep > crossingSteps.length
                   ? buildRowCrossCountsFromRight(rows, displayedVisualizationView?.redCrossed ?? 0)[rowIndex]
                   : 0;
-                const crossed = i >= balls - stepCrossed;
-                return <button type="button" key={`red-${rowIndex}-${i}`} aria-label={`Rote Kugel ${i + 1}`} className={`rounded px-0.5 text-2xl ${crossed ? 'line-through decoration-2 decoration-black/80' : ''}`} disabled={!visualizationCrossingActive || crossed} onClick={() => crossVisualizationBall('red', rows, rowIndex, i)}>🔴</button>;
+                const positionFromRight = getBallPositionFromRight(rows, rowIndex, i);
+                const crossed = visualizationCrossingActive
+                  ? visualizationCrossState.redCrossedPositions.includes(positionFromRight)
+                  : i >= balls - stepCrossed;
+                return <button type="button" key={`red-${rowIndex}-${i}`} aria-label={`Rote Kugel ${i + 1}`} className={`rounded px-0.5 text-2xl ${crossed ? 'line-through decoration-2 decoration-black/80' : ''}`} disabled={!visualizationCrossingActive} onClick={() => crossVisualizationBall('red', rows, rowIndex, i)}>🔴</button>;
               })}
             </div>)}
           </div>
@@ -573,9 +595,10 @@ export function App() {
             {visualizationStep > 0 && visualizationStep <= crossingSteps.length && tr.visualizationCrossDescription}
             {visualizationStep === crossingSteps.length + 1 && tr.visualizationQuestion}
           </p>
+          {visualizationMessage && <p className={`mt-2 rounded border px-3 py-2 font-semibold ${visualizationMessage.type === 'error' ? 'border-red-300 bg-red-50 text-red-800' : 'border-green-300 bg-green-50 text-green-800'}`}>{visualizationMessage.text}</p>}
           <div className="mt-3 flex justify-end gap-2">
             <button className="rounded border border-slate-400 px-3 py-2 font-semibold disabled:opacity-50" disabled={visualizationStep === 0} onClick={() => moveVisualizationStep(Math.max(0, visualizationStep - 1))}>{tr.back}</button>
-            <button className="rounded bg-blue-700 px-3 py-2 font-semibold text-white disabled:opacity-50" disabled={visualizationStep >= crossingSteps.length + 1 || !visualizationStepComplete} onClick={() => moveVisualizationStep(visualizationStep + 1)}>{tr.next}</button>
+            <button className="rounded bg-blue-700 px-3 py-2 font-semibold text-white disabled:opacity-50" disabled={visualizationStep >= crossingSteps.length + 1} onClick={handleVisualizationNext}>{tr.next}</button>
           </div>
         </div>
       </div>}
@@ -613,7 +636,8 @@ export function App() {
           <button className="rounded bg-red-700 px-3 py-2 font-bold text-white disabled:opacity-50" onClick={() => setProfile((p) => ({ ...p, session: { ...p.session, typedAnswer: p.session.typedAnswer.slice(0, -1) } }))}>⌫ {tr.del}</button>
           {didacticSubtraction && <button className="rounded bg-indigo-700 px-3 py-2 font-bold text-white" onClick={() => {
             setVisualizationStep(0);
-            setVisualizationCrossState({ blueCrossed: 0, redCrossed: 0 });
+            setVisualizationCrossState({ blueCrossedPositions: [], redCrossedPositions: [] });
+            setVisualizationMessage(null);
             setVisualizationOpen(true);
           }}>🔵🔴 {tr.visualize}</button>}
           {practiceUi.showSkipButton && <button className="rounded bg-blue-700 px-3 py-2 font-bold text-white disabled:opacity-50" onClick={skipToNextProblem}>→ {tr.next}</button>}

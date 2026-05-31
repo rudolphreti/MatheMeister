@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyVisualizationBallCross, buildCrossingSteps, buildRowCrossCountsFromRight, buildVisualizationStepView, isBridgeToTenSubtractionType, isVisualizationStepComplete, parseSimpleSubtraction, toRows } from '../src/lib/subtractionDidactics';
+import { buildCrossingSteps, buildRowCrossCountsFromRight, buildVisualizationStepView, isBridgeToTenSubtractionType, isVisualizationStepValid, toggleVisualizationBallCross, parseSimpleSubtraction, toRows } from '../src/lib/subtractionDidactics';
 
 describe('subtraction didactics', () => {
   it('detects bridge-to-ten subtraction type', () => {
@@ -38,22 +38,19 @@ describe('subtraction didactics', () => {
     expect(buildRowCrossCountsFromRight([9], 7)).toEqual([7]);
   });
 
-  it('allows interactive crossing only from right to left up to the current step target', () => {
-    const stepTarget = buildVisualizationStepView(17, 9, 1);
-    const emptyState = { blueCrossed: 0, redCrossed: 0 };
+  it('lets the user toggle any ball in the active visualization step', () => {
+    const emptyState = { blueCrossedPositions: [], redCrossedPositions: [] };
 
-    expect(applyVisualizationBallCross(emptyState, stepTarget, 'blue', 1)).toEqual(emptyState);
-    expect(applyVisualizationBallCross(emptyState, stepTarget, 'blue', 0)).toEqual({ blueCrossed: 1, redCrossed: 0 });
-
-    const fullBlue = { blueCrossed: 7, redCrossed: 0 };
-    expect(applyVisualizationBallCross(fullBlue, stepTarget, 'blue', 7)).toEqual(fullBlue);
+    const crossedLeftBall = toggleVisualizationBallCross(emptyState, 'blue', 6);
+    expect(crossedLeftBall).toEqual({ blueCrossedPositions: [6], redCrossedPositions: [] });
+    expect(toggleVisualizationBallCross(crossedLeftBall, 'blue', 6)).toEqual(emptyState);
   });
 
-  it('marks visualization step complete only when the user crossed the expected amounts', () => {
+  it('validates visualization crosses against the expected right-to-left didactic positions', () => {
     const stepTarget = buildVisualizationStepView(17, 9, 1);
 
-    expect(isVisualizationStepComplete({ blueCrossed: 7, redCrossed: 6 }, stepTarget)).toBe(false);
-    expect(isVisualizationStepComplete({ blueCrossed: 7, redCrossed: 7 }, stepTarget)).toBe(true);
+    expect(isVisualizationStepValid({ blueCrossedPositions: [1, 2, 3, 4, 5, 6, 7], redCrossedPositions: [1, 2, 3, 4, 5, 6, 7] }, stepTarget)).toBe(false);
+    expect(isVisualizationStepValid({ blueCrossedPositions: [0, 1, 2, 3, 4, 5, 6], redCrossedPositions: [0, 1, 2, 3, 4, 5, 6] }, stepTarget)).toBe(true);
   });
 
   it('builds step-3 view with 10 blue visible and all red crossed', () => {

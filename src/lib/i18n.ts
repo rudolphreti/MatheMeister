@@ -92,4 +92,5 @@ export const t = (_lang: Language) => ({
   visualizationStep1Description: 'Zeige blaue und rote Kugeln ohne Durchstreichen.',
   visualizationCrossDescription: 'Streiche die Kugeln von rechts nach links durch.',
   visualizationQuestion: 'Frage: Wie viele Kugeln sind übrig?',
+  visualizationInvalidStep: 'Das passt noch nicht. Streiche genau die Kugeln von rechts nach links durch.',
 });

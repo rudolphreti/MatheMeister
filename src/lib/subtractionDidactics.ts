@@ -32,31 +32,45 @@ export interface VisualizationStepView {
 export type VisualizationBallColor = 'blue' | 'red';
 
 export interface VisualizationCrossState {
-  blueCrossed: number;
-  redCrossed: number;
+  blueCrossedPositions: number[];
+  redCrossedPositions: number[];
 }
 
-export function isVisualizationStepComplete(
+function uniqueSorted(values: number[]): number[] {
+  return Array.from(new Set(values.filter((value) => Number.isInteger(value) && value >= 0))).sort((a, b) => a - b);
+}
+
+function expectedPositions(count: number): number[] {
+  return Array.from({ length: Math.max(0, count) }, (_, index) => index);
+}
+
+function samePositions(actual: number[], expected: number[]): boolean {
+  const normalized = uniqueSorted(actual);
+  if (normalized.length !== expected.length) return false;
+  return normalized.every((value, index) => value === expected[index]);
+}
+
+export function isVisualizationStepValid(
   state: VisualizationCrossState,
   target: VisualizationStepView
 ): boolean {
-  return state.blueCrossed === target.blueCrossed && state.redCrossed === target.redCrossed;
+  return samePositions(state.blueCrossedPositions, expectedPositions(target.blueCrossed))
+    && samePositions(state.redCrossedPositions, expectedPositions(target.redCrossed));
 }
 
-export function applyVisualizationBallCross(
+export function toggleVisualizationBallCross(
   state: VisualizationCrossState,
-  target: VisualizationStepView,
   color: VisualizationBallColor,
   positionFromRight: number
 ): VisualizationCrossState {
-  const current = color === 'blue' ? state.blueCrossed : state.redCrossed;
-  const expected = color === 'blue' ? target.blueCrossed : target.redCrossed;
-  if (current >= expected) return state;
-  if (positionFromRight !== current) return state;
+  const key = color === 'blue' ? 'blueCrossedPositions' : 'redCrossedPositions';
+  const current = state[key];
+  const exists = current.includes(positionFromRight);
+  const nextPositions = exists
+    ? current.filter((position) => position !== positionFromRight)
+    : uniqueSorted([...current, positionFromRight]);
 
-  return color === 'blue'
-    ? { ...state, blueCrossed: state.blueCrossed + 1 }
-    : { ...state, redCrossed: state.redCrossed + 1 };
+  return { ...state, [key]: nextPositions };
 }
 
 export function buildCrossingSteps(minuend: number, subtrahend: number): CrossingStep[] {
